@@ -33,18 +33,7 @@ public static class DadosDeIntegracao
     public static object NovoContato(string telefone = "11999998888")
         => new { tipo = "CELULAR", telefone, principal = false };
 
-    public static object NovoLembrete(long responsavelId, TipoLembrete tipo = TipoLembrete.VACINA)
-        => new
-        {
-            responsavelId,
-            petId = 7,
-            tipo = (int)tipo,
-            dataAgendada = "2026-09-15",
-            mensagem = "Vacina antirrábica agendada",
-            referenciaId = 99,
-            referenciaTipo = "VACINA"
-        };
-
+    /// <summary>Cadastra o responsável e deixa o cliente autenticado como ele (o cadastro devolve o token).</summary>
     public static async Task<long> CadastrarResponsavelAsync(
         HttpClient client, string cpf = "12345678901", string email = "pedro@pethub.com")
     {
@@ -52,6 +41,20 @@ public static class DadosDeIntegracao
         resposta.EnsureSuccessStatusCode();
 
         var criado = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+        Autenticar(client, criado.GetProperty("token").GetString()!);
         return criado.GetProperty("id").GetInt64();
     }
+
+    /// <summary>Faz login e deixa o cliente autenticado como esse responsável.</summary>
+    public static async Task EntrarAsync(HttpClient client, string email)
+    {
+        var resposta = await client.PostAsJsonAsync("/api/responsavel/login", NovoLogin(email: email));
+        resposta.EnsureSuccessStatusCode();
+
+        var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+        Autenticar(client, corpo.GetProperty("token").GetString()!);
+    }
+
+    private static void Autenticar(HttpClient client, string token)
+        => client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 }

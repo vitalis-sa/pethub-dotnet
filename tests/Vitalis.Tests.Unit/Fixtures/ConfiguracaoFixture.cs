@@ -1,26 +1,25 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
+using Vitalis.Seguranca;
 
 namespace Vitalis.Tests.Unit.Fixtures;
 
 public class ConfiguracaoFixture
 {
-    public const string ServiceTokenValido = "token-de-teste-2026";
+    public IAutenticadorDeServico Autenticador { get; } = ChavesDeTeste.NovoAutenticador();
 
-    public IConfiguration Configuration { get; } = new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["ServiceToken"] = ServiceTokenValido
-        })
-        .Build();
-
-    public static T ComHttpContext<T>(T controller, string? serviceToken = null) where T : ControllerBase
+    public static T ComHttpContext<T>(T controller, string? serviceToken = null, long? responsavelLogado = null)
+        where T : ControllerBase
     {
         var httpContext = new DefaultHttpContext();
 
         if (serviceToken is not null)
-            httpContext.Request.Headers["X-Service-Token"] = serviceToken;
+            httpContext.Request.Headers[AutenticadorDeServico.Cabecalho] = "Bearer " + serviceToken;
+
+        if (responsavelLogado is not null)
+            httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim("sub", responsavelLogado.Value.ToString())], authenticationType: "teste"));
 
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         return controller;

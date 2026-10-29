@@ -76,10 +76,16 @@ public class ResponsavelContatoRepository : IResponsavelContatoRepository
 
     private void DesmarcarOutros(long responsavelId, long? excludeId)
     {
-        var outros = _context.Contatos
-            .Where(c => c.ResponsavelId == responsavelId && c.Principal &&
-                        (excludeId == null || c.Id != excludeId))
-            .ToList();
+        // A exclusão do próprio id é aplicada em C#: um `excludeId == null || ...` dentro da consulta
+        // vira o literal FALSE no SQL, que o Oracle da FIAP não aceita (ORA-00904).
+        var consulta = _context.Contatos.Where(c => c.ResponsavelId == responsavelId && c.Principal);
+        if (excludeId.HasValue)
+        {
+            var idIgnorado = excludeId.Value;
+            consulta = consulta.Where(c => c.Id != idIgnorado);
+        }
+
+        var outros = consulta.ToList();
 
         foreach (var c in outros)
             c.Principal = false;

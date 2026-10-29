@@ -1,41 +1,37 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Vitalis.Integracao;
 using Vitalis.Observabilidade;
 using Vitalis.Repositories;
+using Vitalis.Seguranca;
 
 [ApiController]
 [Route("api/responsavel")]
 public class ResponsavelsApiController : ControllerBase
 {
     private readonly IResponsavelRepository _repo;
-    private readonly IConfiguration _config;
+    private readonly IAutenticadorDeServico _servico;
+    private readonly IEmissorDeToken _tokens;
+    private readonly IPethubJavaClient _java;
     // Logger usado para o registro estruturado das operações do controller
     private readonly ILogger<ResponsavelsApiController> _logger;
 
     public ResponsavelsApiController(
         IResponsavelRepository repo,
-        IConfiguration config,
+        IAutenticadorDeServico servico,
+        IEmissorDeToken tokens,
+        IPethubJavaClient java,
         ILogger<ResponsavelsApiController> logger)
     {
         _repo = repo;
-        _config = config;
+        _servico = servico;
+        _tokens = tokens;
+        _java = java;
         _logger = logger;
     }
 
-    [HttpGet]
-    public IActionResult GetAll()
-    {
-        // Grava log de informação antes de processar a consulta
-        _logger.LogInformation("Buscando listagem completa de responsáveis.");
-
-        var responsavels = _repo.GetAll().Select(t => new
-        {
-            t.Id, t.Nome, t.Email, t.Cpf, t.Ativo, t.CreatedAt
-        });
-        return Ok(responsavels);
-    }
-
     [HttpGet("{id:long}")]
+    [ApenasProprietario("id", AceitaServico = true)]
     public IActionResult GetById(long id)
     {
         // Grava log estruturado contendo o parâmetro da busca
@@ -60,11 +56,11 @@ public class ResponsavelsApiController : ControllerBase
     [HttpGet("buscar")]
     public IActionResult BuscarPorCpf([FromQuery] string cpf)
     {
-        if (!ValidarServiceToken())
+        if (!_servico.TokenDoJavaValido(Request))
         {
             // Grava log de aviso indicando tentativa de acesso não autorizada
-            _logger.LogWarning("Tentativa de busca por CPF com Service Token inválido.");
-            return Unauthorized(new { erro = "Token inválido" });
+            _logger.LogWarning("Tentativa de busca por CPF sem token de serviço válido.");
+            return Unauthorized(new { erro = "Token de serviço inválido" });
         }
 
         if (string.IsNullOrWhiteSpace(cpf))
@@ -133,7 +129,7 @@ public class ResponsavelsApiController : ControllerBase
             _logger.LogInformation("Responsável {ResponsavelId} cadastrado com sucesso.", responsavel.Id);
 
             return CreatedAtAction(nameof(GetById), new { id = responsavel.Id },
-                new { responsavel.Id, responsavel.Nome, responsavel.Email });
+                new { responsavel.Id, responsavel.Nome, responsavel.Email, Token = _tokens.Emitir(responsavel) });
         }
         catch (Exception ex)
         {
@@ -171,11 +167,12 @@ public class ResponsavelsApiController : ControllerBase
         }
 
         _logger.LogInformation("Responsável {ResponsavelId} autenticado com sucesso.", responsavel.Id);
-        return Ok(new { responsavel.Id, responsavel.Nome, responsavel.Email });
+        return Ok(new { responsavel.Id, responsavel.Nome, responsavel.Email, Token = _tokens.Emitir(responsavel) });
     }
 
     [HttpPut("{id:long}")]
-    public IActionResult Update(long id, [FromBody] CadastrarResponsavelDto dto)
+    [ApenasProprietario("id")]
+    public IActionResult Update(long id, [FromBody] AtualizarResponsavelDto dto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -197,8 +194,13 @@ public class ResponsavelsApiController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Apaga primeiro os pets do responsável no serviço clínico e só depois o cadastro. Se o Java não
+    /// confirmar, nada é apagado aqui: assim não sobram pets sem dono. Repetir a chamada é seguro.
+    /// </summary>
     [HttpDelete("{id:long}")]
-    public IActionResult Delete(long id)
+    [ApenasProprietario("id")]
+    public async Task<IActionResult> Delete(long id, CancellationToken ct = default)
     {
         var responsavel = _repo.GetById(id);
         if (responsavel == null)
@@ -207,15 +209,20 @@ public class ResponsavelsApiController : ControllerBase
             return NotFound(new { erro = "Responsavel não encontrado" });
         }
 
+        try
+        {
+            await _java.ApagarPetsDoResponsavelAsync(id, ct);
+        }
+        catch (ServicoIndisponivelException ex)
+        {
+            _logger.LogError(ex, "Remoção do responsável {ResponsavelId} interrompida: o serviço clínico não confirmou a remoção dos pets.", id);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { erro = "Não foi possível apagar os pets do responsável agora. Tente novamente." });
+        }
+
         _repo.Delete(id);
 
         _logger.LogInformation("Responsável {ResponsavelId} removido com sucesso.", id);
         return NoContent();
-    }
-
-    private bool ValidarServiceToken()
-    {
-        var token = Request.Headers["X-Service-Token"].ToString();
-        return token == _config["ServiceToken"];
     }
 }

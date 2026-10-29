@@ -2,12 +2,20 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Headers;
+using Vitalis.Integracao;
+using Vitalis.Mensageria;
+using Vitalis.Models;
+using Vitalis.Repositories;
+using Vitalis.Seguranca;
 
 namespace Vitalis.Tests.Integration.Fixtures;
 
 public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
 {
-    public const string ServiceToken = "token-de-integracao-2026";
+    public const string SegredoJwt = "segredo-jwt-de-integracao-com-mais-de-32-bytes";
+
+    public JavaFalso Java { get; } = new();
 
     private readonly string _nomeDoBanco = $"vitalis-integracao-{Guid.NewGuid():N}";
 
@@ -15,12 +23,15 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
 
-        builder.UseSetting("ServiceToken", ServiceToken);
+        builder.UseSetting("ServicoAuth:Segredo", ChavesDeTeste.Segredo);
+        builder.UseSetting("Jwt:Segredo", SegredoJwt);
+        builder.UseSetting("Jwt:Emissor", "vitalis-integracao");
         builder.UseSetting("ServicosExternos:PethubJava", "http://127.0.0.1:9/health");
 
         builder.ConfigureServices(services =>
         {
             RemoverRegistroDoOracle(services);
+            services.AddSingleton<IPethubJavaClient>(Java);
 
             services.AddDbContext<AppDbContext>(options =>
                 options.UseInMemoryDatabase(_nomeDoBanco));
@@ -48,6 +59,8 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
 
     public void LimparBanco()
     {
+        Java.Reiniciar();
+
         using var scope = Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -59,10 +72,45 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
         context.ChangeTracker.Clear();
     }
 
-    public HttpClient CreateClientComServiceToken(string token = ServiceToken)
+    /// <summary>Cliente já autenticado como o responsável, sem passar pelo login.</summary>
+    public HttpClient CreateClientAutenticadoComo(long responsavelId)
+    {
+        using var scope = Services.CreateScope();
+        var token = scope.ServiceProvider.GetRequiredService<IEmissorDeToken>().Emitir(
+            new Responsavel { Id = responsavelId, Nome = "Teste", Email = "teste@pethub.com", Cpf = "0", Senha = "x" });
+
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    /// <summary>Grava um lembrete como se tivesse chegado pela fila e devolve o id.</summary>
+    public long CriarLembrete(long responsavelId, TipoLembrete tipo = TipoLembrete.VACINA, long referenciaId = 99)
+    {
+        using var scope = Services.CreateScope();
+        var lembrete = new Lembrete
+        {
+            ResponsavelId = responsavelId, PetId = 7, Tipo = tipo,
+            DataAgendada = new DateOnly(2026, 9, 15), Mensagem = "Vacina antirrábica agendada",
+            ReferenciaId = referenciaId, ReferenciaTipo = "VacinaTratamento"
+        };
+        scope.ServiceProvider.GetRequiredService<ILembreteRepository>().Add(lembrete);
+        return lembrete.Id;
+    }
+
+    /// <summary>Entrega uma mensagem ao processador, exatamente como o consumidor da fila faz.</summary>
+    public ResultadoDaMensagem ReceberMensagem(string json)
+    {
+        using var scope = Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<IProcessadorDeLembrete>()
+            .Processar(System.Text.Encoding.UTF8.GetBytes(json));
+    }
+
+    /// <summary>Cliente que fala como o Java: JWT de serviço assinado com o segredo de serviço.</summary>
+    public HttpClient CreateClientComServiceToken(string? token = null)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add("X-Service-Token", token);
+        client.DefaultRequestHeaders.Add(AutenticadorDeServico.Cabecalho, "Bearer " + (token ?? ChavesDeTeste.TokenDoJava()));
         return client;
     }
 }

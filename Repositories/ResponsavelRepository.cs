@@ -23,13 +23,16 @@ public class ResponsavelRepository : IResponsavelRepository
             .Include(t => t.Contatos)
             .FirstOrDefault(t => t.Id == id);
 
+    public bool Existe(long id)
+        => _context.Responsavels.Any(t => t.Id == id);
+
     public Responsavel? GetByCpf(string cpf)
         => _context.Responsavels
             .FirstOrDefault(t => t.Cpf == cpf && t.Ativo);
 
     public void Add(Responsavel responsavel)
     {
-        responsavel.CreatedAt = DateTime.UtcNow;
+        responsavel.CreatedAt = Vitalis.Configuracao.Relogio.Agora();
         responsavel.Senha = BCrypt.Net.BCrypt.HashPassword(responsavel.Senha);
         _context.Responsavels.Add(responsavel);
         _context.SaveChanges();

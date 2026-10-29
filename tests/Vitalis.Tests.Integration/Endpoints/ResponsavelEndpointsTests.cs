@@ -39,6 +39,7 @@ public class ResponsavelEndpointsTests : IDisposable
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.Created);
         resposta.Headers.Location.Should().NotBeNull();
+        (await resposta.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -130,9 +131,10 @@ public class ResponsavelEndpointsTests : IDisposable
     {
         // Arrange
         const long idInexistente = 999_999;
+        using var logado = _factory.CreateClientAutenticadoComo(idInexistente);
 
         // Act
-        var resposta = await _client.GetAsync($"/api/responsavel/{idInexistente}");
+        var resposta = await logado.GetAsync($"/api/responsavel/{idInexistente}");
         var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>();
 
         // Assert
@@ -141,19 +143,60 @@ public class ResponsavelEndpointsTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAll_VariosResponsaveisCadastrados_DeveRetornar200ComTodosOsRegistros()
+    public async Task GetById_SemToken_DeveRetornar401()
     {
         // Arrange
-        await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "11111111111", email: "a@pethub.com");
+        var id = await DadosDeIntegracao.CadastrarResponsavelAsync(_client);
+        using var anonimo = _factory.CreateClient();
+
+        // Act
+        var resposta = await anonimo.GetAsync($"/api/responsavel/{id}");
+
+        // Assert
+        resposta.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GetById_DadosDeOutroResponsavel_DeveRetornar403()
+    {
+        // Arrange
+        var outro = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "11111111111", email: "a@pethub.com");
         await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "22222222222", email: "b@pethub.com");
 
         // Act
-        var resposta = await _client.GetAsync("/api/responsavel");
+        var resposta = await _client.GetAsync($"/api/responsavel/{outro}");
+
+        // Assert
+        resposta.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task GetById_ComCredencialDeServico_DeveRetornar200ParaOJavaConsultarOResponsavel()
+    {
+        // Arrange
+        var id = await DadosDeIntegracao.CadastrarResponsavelAsync(_client);
+        using var servico = _factory.CreateClientComServiceToken();
+
+        // Act
+        var resposta = await servico.GetAsync($"/api/responsavel/{id}");
         var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>();
 
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.OK);
-        corpo.GetArrayLength().Should().Be(2);
+        corpo.GetProperty("email").GetString().Should().Be("pedro@pethub.com");
+    }
+
+    [Fact]
+    public async Task GetListaDeTodos_NaoDeveExistirMais()
+    {
+        // Arrange
+        await DadosDeIntegracao.CadastrarResponsavelAsync(_client);
+
+        // Act
+        var resposta = await _client.GetAsync("/api/responsavel");
+
+        // Assert
+        resposta.StatusCode.Should().BeOneOf(HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed);
     }
 
     [Fact]
@@ -225,6 +268,7 @@ public class ResponsavelEndpointsTests : IDisposable
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.OK);
         corpo.GetProperty("id").GetInt64().Should().Be(id);
+        corpo.GetProperty("token").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -259,7 +303,7 @@ public class ResponsavelEndpointsTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteResponsavel_ResponsavelCadastrado_DeveRetornar204ERemoverORegistro()
+    public async Task DeleteResponsavel_ResponsavelCadastrado_DeveApagarOsPetsNoJavaERemoverORegistro()
     {
         // Arrange
         var id = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "88899900011", email: "del@pethub.com");
@@ -271,15 +315,50 @@ public class ResponsavelEndpointsTests : IDisposable
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.NoContent);
         consulta.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        _factory.Java.ResponsaveisComPetsApagados.Should().Equal(id);
+    }
+
+    [Fact]
+    public async Task DeleteResponsavel_JavaFora_DeveRetornar503EManterOResponsavel()
+    {
+        // Arrange
+        var id = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "99900011122", email: "java@pethub.com");
+        _factory.Java.Fora = true;
+
+        // Act
+        var resposta = await _client.DeleteAsync($"/api/responsavel/{id}");
+        var consulta = await _client.GetAsync($"/api/responsavel/{id}");
+
+        // Assert
+        resposta.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        consulta.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
     public async Task DeleteResponsavel_IdInexistente_DeveRetornar404()
     {
-        // Arrange & Act
-        var resposta = await _client.DeleteAsync("/api/responsavel/999999");
+        // Arrange
+        using var logado = _factory.CreateClientAutenticadoComo(999_999);
+
+        // Act
+        var resposta = await logado.DeleteAsync("/api/responsavel/999999");
 
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DeleteResponsavel_DeOutroResponsavel_DeveRetornar403SemApagarNada()
+    {
+        // Arrange
+        var alvo = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "11111111111", email: "alvo@pethub.com");
+        await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "22222222222", email: "intruso@pethub.com");
+
+        // Act
+        var resposta = await _client.DeleteAsync($"/api/responsavel/{alvo}");
+
+        // Assert
+        resposta.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        _factory.Java.ResponsaveisComPetsApagados.Should().BeEmpty();
     }
 }

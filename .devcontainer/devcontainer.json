@@ -1,0 +1,19 @@
+{
+  "name": "Vitalis API (.NET 10)",
+  "image": "mcr.microsoft.com/dotnet/sdk:10.0",
+  "runArgs": ["--env-file", "${localWorkspaceFolder}/.env"],
+  "containerEnv": {
+    "ASPNETCORE_ENVIRONMENT": "Development",
+    "DOTNET_NOLOGO": "1"
+  },
+  "forwardPorts": [5192],
+  "portsAttributes": {
+    "5192": { "label": "Vitalis API", "onAutoForward": "notify" }
+  },
+  "postCreateCommand": "dotnet restore Vitalis.csproj",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-dotnettools.csharp"]
+    }
+  }
+}

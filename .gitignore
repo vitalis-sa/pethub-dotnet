@@ -433,3 +433,6 @@ logs/
 
 # Resultados de testes e cobertura
 TestResults/
+
+# Configuração local com segredos (CloudAMQP etc.)
+appsettings.Local.json

@@ -1,0 +1,14 @@
+# Não manda para o contexto de build o que é gerado localmente ou sensível.
+**/bin
+**/obj
+**/.vs
+**/logs
+**/TestResults
+tests
+.git
+.gitignore
+*.env
+Dockerfile
+.dockerignore
+.env
+appsettings.Local.json

@@ -2,16 +2,26 @@
 
 API RESTful desenvolvida em **ASP.NET Core (.NET 10)** responsável pelo domínio do **Responsável** no sistema PetHub.
 
-O PetHub é um sistema veterinário composto por dois backends que compartilham o mesmo banco Oracle:
+O PetHub é um sistema veterinário composto por **dois serviços**. Cada um é dono das próprias tabelas
+(podem usar o mesmo schema Oracle ou bancos separados) e nenhum acessa o banco do outro:
 
-| Backend | Tecnologia | Responsabilidade |
+| Serviço | Tecnologia | Responsabilidade |
 |---|---|---|
-| **Vitalis (este)** | C# .NET 10 | Cadastro e autenticação de Responsáveis, Endereços, Contatos e Lembretes |
-| **pethub-java** | Java 21 + Spring Boot 3 | Veterinários, Pets, Consultas, Diagnósticos, Vacinas e Wearable IoT |
+| **Vitalis (este)** | C# .NET 10 | Cadastro e login do **responsável**, endereços, contatos, **lembretes** e o gateway do responsável para o serviço clínico |
+| **pethub-java** | Java 21 + Spring Boot | Veterinários, pets, consultas, prontuário, exames, e-mail de confirmação e IA (Gemini) |
 
-O app mobile consome ambos os backends. O Java chama a API do Vitalis para buscar responsáveis por CPF e para criar lembretes de eventos veterinários.
+Como conversam:
 
-Na **3ª sprint** a aplicação ganhou uma camada de **monitoramento e observabilidade** (Health Checks, logging estruturado com Serilog e tracing/métricas com OpenTelemetry) e uma suíte de **testes automatizados** no padrão AAA, com 127 testes unitários e de integração.
+| Fluxo | Direção | Como |
+|---|---|---|
+| Lembrete (consulta marcada, vacina, exame, medicamento) | Java → **RabbitMQ** → Vitalis | O Java só publica; **só o Vitalis consome** (`Mensageria/LembreteConsumidor`) |
+| Responsável usa pets, consultas, exames... | App → Vitalis `/api/clinico/**` → Java | O Vitalis valida o JWT e repassa ao Java com um JWT de serviço HS256 de 60 s (`X-Service-Authorization`, `sub` = responsável); o Java aplica as regras de posse |
+| Java precisa do nome/e-mail/CPF do responsável | Java → Vitalis | `GET /api/responsavel/{id}` e `/buscar?cpf=` com JWT de serviço assinado pelo Java |
+| Responsável é excluído | Vitalis → Java | `DELETE /api/pets/responsavel/{id}` **antes** de apagar o cadastro; se o Java não confirmar, nada é apagado |
+
+O veterinário não passa por aqui: ele faz login direto no Java.
+
+Na **3ª sprint** a aplicação ganhou uma camada de **monitoramento e observabilidade** (Health Checks, logging estruturado com Serilog e tracing/métricas com OpenTelemetry) e uma suíte de **testes automatizados** no padrão AAA, com testes unitários e de integração.
 
 ---
 
@@ -22,6 +32,8 @@ Na **3ª sprint** a aplicação ganhou uma camada de **monitoramento e observabi
 - .NET 10 / ASP.NET Core Web API
 - Entity Framework Core 10 + Oracle.EntityFrameworkCore
 - BCrypt.Net-Next (hash de senhas)
+- JWT (`Microsoft.AspNetCore.Authentication.JwtBearer`) — autenticação do responsável
+- RabbitMQ.Client 7 — consumo da fila de lembretes (CloudAMQP)
 - Swashbuckle (Swagger / OpenAPI 3.0)
 
 **Monitoramento e observabilidade**
@@ -64,15 +76,16 @@ cd PetHub-.NET
 # 2. Restaurar dependências
 dotnet restore
 
-# 3. Configurar a string de conexão em appsettings.json
-# "OracleConnection": "User Id=SEU_USER;Password=SUA_SENHA;Data Source=oracle.fiap.com.br:1521/orcl"
+# 3. Definir as variáveis de ambiente (veja "Configuração" abaixo): conexão Oracle, ServicoAuth__Segredo, Jwt__Segredo...
 
-# 4. Aplicar as migrations no banco
-dotnet ef database update
-
-# 5. Rodar a aplicação
+# 4. Rodar a aplicação (as tabelas do Vitalis são criadas sozinhas se ainda não existirem)
 dotnet run
 ```
+
+**Banco de dados.** Na subida, o Vitalis cria só as próprias tabelas (`TB_RESPONSAVEL`, `TB_RESPONSAVEL_ENDERECO`,
+`TB_RESPONSAVEL_CONTATO`, `TB_LEMBRETE`) se `TB_RESPONSAVEL` não existir (`Dados/InicializadorDoBanco.cs`). O
+Java faz o mesmo com as dele. Por isso **a ordem de subida não importa** e nenhum serviço derruba as tabelas do
+outro. Não há chave estrangeira entre os dois lados. Para desligar: `Banco__CriarTabelas=false`.
 
 A API sobe em `http://localhost:5192`.
 O Swagger fica disponível em `http://localhost:5192/swagger`.
@@ -85,8 +98,13 @@ O Swagger fica disponível em `http://localhost:5192/swagger`.
 Vitalis/
 ├── Vitalis.slnx                  # Solução: API + projetos de teste
 ├── Controllers/                  # Endpoints da API (instrumentados com ILogger, Activity e Counter)
-├── Dados/AppDbContext.cs
-├── Dto/  Models/  Repositories/  Migrations/
+│   └── GatewayClinicoController.cs     # /api/clinico/** → pethub-java
+├── Configuracao/Opcoes.cs        # Jwt, RabbitMq e PethubJava
+├── Dados/AppDbContext.cs  InicializadorDoBanco.cs
+├── Dto/  Models/  Repositories/
+├── Integracao/PethubJavaClient.cs      # HttpClient para o Java (credencial de serviço)
+├── Mensageria/                         # LembreteConsumidor (RabbitMQ) e ProcessadorDeLembrete
+├── Seguranca/                          # JWT, credencial de serviço e [ApenasProprietario]
 ├── Health/                       # Health Checks customizados (3ª sprint)
 │   ├── BancoDadosHealthCheck.cs        # Conectividade com o Oracle
 │   ├── ServicoExternoHealthCheck.cs    # Disponibilidade do backend Java
@@ -95,12 +113,12 @@ Vitalis/
 │   └── CorrelationIdMiddleware.cs      # X-Correlation-ID no log estruturado
 ├── Observabilidade/
 │   └── AplicacaoMetricas.cs            # Meter, Counters e ActivitySource da aplicação
-├── Program.cs                    # Serilog, Health Checks e OpenTelemetry
+├── Program.cs                    # Serilog, JWT, RabbitMQ, Health Checks e OpenTelemetry
 └── tests/
-    ├── Vitalis.Tests.Unit/             # Testes unitários (79)
-    │   ├── Dominio/  Aplicacao/  Fixtures/
-    └── Vitalis.Tests.Integration/      # Testes de integração (48)
-        ├── Endpoints/  Monitoramento/  Fixtures/
+    ├── Vitalis.Tests.Unit/             # Testes unitários
+    │   ├── Dominio/  Aplicacao/  Mensageria/  Seguranca/  Fixtures/
+    └── Vitalis.Tests.Integration/      # Testes de integração
+        ├── Endpoints/  Monitoramento/  Fixtures/   # JavaFalso substitui o pethub-java
 ```
 
 ---
@@ -205,7 +223,7 @@ e grava em dois **Sinks** simultâneos:
 |---|---|
 | `Information` | Início das consultas, cadastros e atualizações bem-sucedidas |
 | `Warning` | Recurso não encontrado, credenciais inválidas, Service Token inválido, dados rejeitados |
-| `Error` | Falhas inesperadas nos endpoints de escrita (`POST /api/responsavel/cadastro` e `POST /api/lembretes`): o `try/catch` chama `_logger.LogError(ex, ...)` com a exceção completa, marca o span como `Error`, contabiliza a métrica com `status=erro_interno` e devolve `500` |
+| `Error` | Falhas inesperadas no cadastro (`POST /api/responsavel/cadastro`) e na gravação de lembretes vindos da fila: o `try/catch` chama `_logger.LogError(ex, ...)` com a exceção completa, marca o span como `Error`, contabiliza a métrica com `status=erro_interno` e devolve `500` |
 
 **Correlation ID:** o `CorrelationIdMiddleware` lê o header `X-Correlation-ID` da requisição
 (ou gera um novo GUID), devolve o valor no header da resposta e o injeta no `LogContext` do
@@ -214,16 +232,7 @@ permitindo rastrear a chamada de ponta a ponta.
 
 ```bash
 # A resposta ecoa o mesmo identificador enviado
-curl -i -H "X-Correlation-ID: aula-42" http://localhost:5192/api/responsavel
-```
-
-Saída correspondente no console:
-
-```
-[22:34:07 WRN] [aula-42] Criação de lembrete recusada por Service Token inválido.
-[22:34:09 ERR] [aula-42] Falha inesperada ao criar lembrete do tipo VACINA para o responsável 1.
-Oracle.ManagedDataAccess.Client.OracleException: ORA-12541: TNS:no listener
-   at Vitalis.Repositories.LembreteRepository.Add(Lembrete lembrete)
+curl -i -H "X-Correlation-ID: aula-42" http://localhost:5192/health
 ```
 
 ### Tracing distribuído e métricas (OpenTelemetry)
@@ -240,36 +249,17 @@ diretamente no terminal do Kestrel.
 | `AddHttpClientInstrumentation()` | Chamadas HTTP de saída (ex.: verificação do serviço externo) |
 | `AddSource("Vitalis.API")` | Spans manuais criados com o `ActivitySource` da aplicação |
 
-Os endpoints de criação abrem um span próprio via `ActivitySource` e anexam tags de negócio.
-Em caso de falha, o span é marcado com `ActivityStatusCode.Error`:
-
-```
-Activity.DisplayName:        CriarLembreteEndpoint
-Activity.Kind:               Internal
-Activity.Duration:           00:00:00.0006399
-Activity.Tags:
-    lembrete.tipo: VACINA
-    lembrete.responsavelId: 1
-```
+O cadastro de responsável abre um span próprio via `ActivitySource` e anexa tags de negócio.
+Em caso de falha, o span é marcado com `ActivityStatusCode.Error`.
 
 **Métricas** — a classe `AplicacaoMetricas` centraliza o `Meter` da aplicação:
 
 | Métrica | Tipo | Descrição |
 |---|---|---|
 | `responsaveis_cadastrados_total` | Counter | Responsáveis cadastrados, com a tag `status` |
-| `lembretes_criados_total` | Counter | Lembretes criados, com a tag `status` |
+| `lembretes_criados_total` | Counter | Lembretes gravados a partir da fila, com a tag `status` (`sucesso`, `erro_validacao`, `erro_interno`) |
 
-A tag `status` distingue os desfechos (`sucesso`, `erro_validacao`, `erro_cpf_duplicado`,
-`erro_token`), o que permite acompanhar a **taxa de erros** por operação de negócio:
-
-```
-Metric Name: lembretes_criados_total, Description: Contagem total de lembretes criados na API, Unit: {lembretes}
-Instrumentation scope (Meter):
-	Name: Vitalis.API
-	Version: 1.0.0
-(...) status: erro_token
-Value: 1
-```
+A tag `status` distingue os desfechos (`sucesso`, `erro_validacao`, `erro_cpf_duplicado`, `erro_interno`), o que permite acompanhar a **taxa de erros** por operação de negócio.
 
 Já o **tempo de resposta** de todas as rotas vem da auto-instrumentação
 `AddAspNetCoreInstrumentation()`, que publica o histograma `http.server.request.duration`
@@ -287,33 +277,37 @@ O pacote `OpenTelemetry.Exporter.OpenTelemetryProtocol` também está instalado:
 
 ### Configuração
 
-Em `appsettings.json`:
+**Segredos e endereços vêm de variáveis de ambiente**, nunca do código. No `appsettings.json` ficam só valores
+vazios ou de exemplo.
 
-```json
-{
-  "ConnectionStrings": {
-    "OracleConnection": "User Id=...;Password=...;Data Source=oracle.fiap.com.br:1521/orcl"
-  },
-  "ServiceToken": "pethub-internal-secret-2025",
-  "ServicosExternos": {
-    "PethubJava": "http://localhost:8080/actuator/health"
-  }
-}
-```
+| Variável | Para quê | Obrigatória |
+|---|---|---|
+| `ConnectionStrings__OracleConnection` | Conexão Oracle | sim |
+| `ServicoAuth__Segredo` | Segredo (mín. 32 caracteres) que assina o JWT de serviço entre o Vitalis e o Java. **Mesmo valor do `SERVICE_JWT_SECRET` do Java.** Vazio = nada é emitido nem aceito | sim |
+| `Jwt__Segredo` | Chave de assinatura do token do responsável (mín. 32 bytes). A API não sobe sem ela | sim |
+| `Jwt__Emissor`, `Jwt__Audiencia`, `Jwt__ExpiracaoMinutos` | Emissor (padrão `vitalis`), audiência (padrão `vitalis-app`) e validade (padrão 120 min) | não |
+| `RabbitMq__Host`, `__Porta`, `__Usuario`, `__Senha`, `__VirtualHost`, `__Ssl` | Broker. No CloudAMQP: porta `5671`, `Ssl=true`, vhost = usuário. Sem `Host`, o consumidor fica desligado | sim, para lembretes |
+| `PethubJava__UrlBase` | URL do serviço Java (padrão `http://localhost:8080`) | sim |
+| `ServicosExternos__PethubJava` | URL sondada pelo health check (padrão: `/api-docs` do Java) | não |
+| `Banco__CriarTabelas` | Cria as tabelas do Vitalis na subida (padrão `true`) | não |
 
-- `ServiceToken` — token compartilhado com o backend Java para proteger os endpoints de integração.
-- `ServicosExternos:PethubJava` — URL consultada pelo health check `servico_externo`.
-
+- **Fila:** `RabbitMq__Exchange`, `__RoutingKey` e `__Fila` já vêm com os mesmos valores do Java
+  (`pethub.lembretes.exchange`, `lembrete.criar`, `pethub.lembretes.queue`). O Vitalis também declara exchange, fila e
+  ligação (idempotente), então a mensagem não se perde se o Java publicar antes do Vitalis subir.
+- **Cloud Run (padrão, sem instância mínima):** o consumidor só esvazia a fila enquanto a instância estiver acordada.
+  Os lembretes ficam guardados na fila durável e são gravados na próxima vez que o serviço subir.
+- **Migrations:** o projeto não usa mais migrations do EF. O arquivo `Migrations/AppDbContextModelSnapshot.cs` é um
+  resto do modelo anterior; pode ser apagado.
 ---
 
 ## Testes automatizados
 
-A solução tem **127 testes** organizados em dois projetos separados por camada:
+A solução tem testes organizados em dois projetos separados por camada:
 
-| Projeto | Testes | Escopo |
-|---|---|---|
-| `tests/Vitalis.Tests.Unit` | 79 | Camadas de **Domínio** e **Aplicação**, com dependências isoladas por Moq |
-| `tests/Vitalis.Tests.Integration` | 48 | Fluxo HTTP completo via `WebApplicationFactory` |
+| Projeto | Escopo |
+|---|---|
+| `tests/Vitalis.Tests.Unit` | Camadas de **Domínio** e **Aplicação**, com dependências isoladas por Moq |
+| `tests/Vitalis.Tests.Integration` | Fluxo HTTP completo via `WebApplicationFactory` |
 
 ### Como executar
 
@@ -335,7 +329,7 @@ dotnet test --logger "console;verbosity=detailed"
 
 # Filtrar por classe ou por nome
 dotnet test --filter FullyQualifiedName~LembretesApiControllerTests
-dotnet test --filter DisplayName~Unauthorized
+dotnet test --filter FullyQualifiedName~ProcessadorDeLembreteTests
 ```
 
 No Visual Studio: **Teste → Gerenciador de Testes** (`Ctrl + E, T`) e **Executar Todos os Testes**.
@@ -379,7 +373,7 @@ public void Cadastrar_DadosValidos_DeveSalvarNoRepositorioERetornarCreated()
 | Exemplo | Leitura |
 |---|---|
 | `GetById_ResponsavelInexistente_DeveRetornarNotFound` | Método `GetById`, cenário "responsável não existe", esperado `404` |
-| `PostLembrete_SemServiceToken_DeveRetornar401` | Criação de lembrete sem o token de integração |
+| `GetLembretesPorResponsavel_DeOutroResponsavel_DeveRetornar403` | Responsável tentando ver lembretes de outro |
 | `Construtor_NomeInvalido_DeveRetornarErroNoCampoNome` | Regra de validação do domínio |
 
 ### Fixtures e Collection Fixtures
@@ -388,8 +382,8 @@ O contexto compartilhado entre os testes é montado com os recursos do xUnit:
 
 | Fixture | Tipo | Compartilha |
 |---|---|---|
-| `ConfiguracaoFixture` | `IClassFixture` | `IConfiguration` com o `ServiceToken` e a montagem do `HttpContext` dos controllers |
-| `VitalisWebApplicationFactory` | `ICollectionFixture` | Uma única instância da API em memória para todas as classes de teste de integração |
+| `ConfiguracaoFixture` | `IClassFixture` | o autenticador de serviço com segredo de teste e a montagem do `HttpContext` (e do responsável logado) dos controllers |
+| `VitalisWebApplicationFactory` | `ICollectionFixture` | Uma única instância da API em memória (banco em memória e `JavaFalso` no lugar do pethub-java; RabbitMQ desligado) |
 
 ### O que os testes cobrem
 
@@ -399,16 +393,18 @@ campos obrigatórios, limites de tamanho (nome, CPF, UF, CEP), valores padrão e
 `TipoLembrete` / `StatusLembrete`. Usa `[Theory]` com `[InlineData]` para os cenários parametrizados.
 
 **Unitários — Aplicação** (`tests/Vitalis.Tests.Unit/Aplicacao`)
-Os quatro controllers com os repositórios simulados por Moq: caminhos de sucesso, `404`, `400`
-por `ModelState` inválido, `409` de CPF duplicado, `401` de login e de `X-Service-Token`, `500`
-com registro de `LogError` quando o repositório lança exceção, e verificação, com `Times.Once` e
-`Times.Never`, de que o repositório é (ou não) chamado.
+Os controllers com dependências simuladas por Moq: sucesso, `404`, `400`, `409` de CPF duplicado, `401` de login e de
+JWT de serviço inválido, `403` para dados de outro responsável, `503` quando o Java não confirma a exclusão dos pets, o
+gateway clínico (lista de recursos permitidos, bloqueio de `..`) e `500` com `LogError`.
+
+**Unitários — Mensageria e Segurança**
+`ProcessadorDeLembrete` (mensagem válida, repetida, inválida, responsável inexistente, banco fora → devolve à fila),
+emissão do JWT e o atributo `[ApenasProprietario]`.
 
 **Integração — Endpoints** (`tests/Vitalis.Tests.Integration/Endpoints`)
-Fluxo HTTP completo: cadastro e login, garantia de que a senha nunca aparece na resposta,
-`400` para JSON malformado e payload incompleto, `409` de CPF duplicado, autenticação por
-`X-Service-Token` (ausente, inválido e válido), CRUD de lembretes, isolamento entre
-responsáveis nos recursos aninhados e a regra de endereço/contato principal.
+Fluxo HTTP completo: cadastro e login (com token), senha nunca na resposta, `401`/`403` por token ausente ou de outro
+responsável, credencial de serviço no `GET /api/responsavel/{id}`, exclusão que depende do Java, lembretes criados
+a partir de mensagens da fila sem duplicar, gateway clínico, e a regra de endereço/contato principal.
 
 **Integração — Monitoramento** (`tests/Vitalis.Tests.Integration/Monitoramento`)
 O endpoint `/health`: status agregado e HTTP `503`, `Content-Type` `application/json`, o
@@ -426,19 +422,23 @@ geração de identificadores distintos por requisição e a disponibilidade do d
 |---|---|---|
 | `GET` | `/health` | Saúde da API: conexão com o Oracle e disponibilidade do backend Java |
 
+### Autenticação
+
+O responsável faz login (`POST /api/responsavel/login`) ou se cadastra e recebe um **JWT** (`token`). Ele vai no header
+`Authorization: Bearer {token}` nas rotas abaixo. Cada responsável só acessa os **próprios** dados (`403` caso contrário).
+
 ### Responsáveis — `/api/responsavel`
 
 | Método | Rota | Descrição | Auth |
 |---|---|---|---|
-| `GET` | `/api/responsavel` | Lista todos os responsáveis | — |
-| `GET` | `/api/responsavel/{id}` | Busca responsável por ID com endereços e contatos | — |
-| `GET` | `/api/responsavel/buscar?cpf={cpf}` | Busca responsável por CPF (chamado pelo Java) | `X-Service-Token` |
-| `POST` | `/api/responsavel/cadastro` | Cadastra novo responsável | — |
-| `POST` | `/api/responsavel/login` | Autentica responsável por e-mail e senha | — |
-| `PUT` | `/api/responsavel/{id}` | Atualiza dados do responsável | — |
-| `DELETE` | `/api/responsavel/{id}` | Remove responsável | — |
+| `GET` | `/api/responsavel/{id}` | Busca o responsável com endereços e contatos | JWT do próprio, ou JWT de serviço do Java |
+| `GET` | `/api/responsavel/buscar?cpf={cpf}` | Busca por CPF (chamado pelo Java) | JWT de serviço do Java (`X-Service-Authorization`) |
+| `POST` | `/api/responsavel/cadastro` | Cadastra e já devolve o `token` | — |
+| `POST` | `/api/responsavel/login` | Autentica e devolve o `token` | — |
+| `PUT` | `/api/responsavel/{id}` | Atualiza nome, CPF e e-mail | JWT do próprio |
+| `DELETE` | `/api/responsavel/{id}` | Apaga os pets no Java e depois o cadastro (`503` se o Java não confirmar) | JWT do próprio |
 
-### Endereços — `/api/responsavel/{responsavelId}/enderecos`
+### Endereços — `/api/responsavel/{responsavelId}/enderecos` (JWT do próprio)
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -451,7 +451,7 @@ geração de identificadores distintos por requisição e a disponibilidade do d
 
 > Ao marcar um endereço como principal, os demais são automaticamente desmarcados.
 
-### Contatos — `/api/responsavel/{responsavelId}/contatos`
+### Contatos — `/api/responsavel/{responsavelId}/contatos` (JWT do próprio)
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -462,49 +462,67 @@ geração de identificadores distintos por requisição e a disponibilidade do d
 | `DELETE` | `/api/responsavel/{responsavelId}/contatos/{id}` | Remove contato |
 | `PATCH` | `/api/responsavel/{responsavelId}/contatos/{id}/principal` | Define como contato principal |
 
-### Lembretes — `/api/lembretes`
+### Lembretes — `/api/lembretes` (JWT)
 
-| Método | Rota | Descrição | Auth |
-|---|---|---|---|
-| `GET` | `/api/lembretes` | Lista todos os lembretes | — |
-| `GET` | `/api/lembretes/{id}` | Busca lembrete por ID | — |
-| `GET` | `/api/lembretes/responsavel/{responsavelId}` | Lista lembretes de um responsável | — |
-| `GET` | `/api/lembretes/responsavel/{responsavelId}/tipo/{tipo}` | Filtra por tipo (VACINA, CONSULTA, EXAME, MEDICAMENTO, HIDRATACAO) | — |
-| `POST` | `/api/lembretes` | Cria lembrete (chamado pelo Java) | `X-Service-Token` |
-| `PATCH` | `/api/lembretes/{id}/status` | Atualiza status do lembrete | — |
-| `DELETE` | `/api/lembretes/{id}` | Remove lembrete | — |
+Os lembretes **não são criados por HTTP**: chegam pela fila (veja abaixo). O responsável só consulta, muda o status e apaga os seus.
 
-> No **corpo** das requisições e respostas, `tipo` e `status` trafegam como o valor numérico do enum
-> (`TipoLembrete`: `0` VACINA, `1` CONSULTA, `2` EXAME, `3` MEDICAMENTO, `4` HIDRATACAO;
-> `StatusLembrete`: `0` PENDENTE, `1` ENVIADO, `2` FALHOU). Na **rota** de filtro por tipo, o nome
-> do enum é aceito diretamente (`.../tipo/VACINA`).
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/api/lembretes/responsavel/{responsavelId}` | Lista os lembretes do responsável |
+| `GET` | `/api/lembretes/responsavel/{responsavelId}/tipo/{tipo}` | Filtra por tipo (`VACINA`, `CONSULTA`, `EXAME`, `MEDICAMENTO`) |
+| `PATCH` | `/api/lembretes/{id}/status` | Atualiza o status (`PENDENTE`, `ENVIADO`, `FALHOU`) |
+| `DELETE` | `/api/lembretes/{id}` | Remove o lembrete |
+
+> `tipo` e `status` trafegam como **texto** (`"CONSULTA"`, `"PENDENTE"`), no corpo e na rota.
+
+### Gateway clínico — `/api/clinico/**` (JWT)
+
+Repassa ao pethub-java, dizendo de qual responsável é o pedido. Aceita `GET`, `POST`, `PUT`, `PATCH` e `DELETE` para
+`pets`, `consultas`, `exames`, `diagnosticos`, `pedidos-medicos`, `vacinas-tratamentos`, `veterinarios` e `unidades`.
+Exemplos: `POST /api/clinico/consultas` (agendar), `POST /api/clinico/pets` (cadastrar pet), `GET /api/clinico/consultas/{id}/receita`.
+O status e o corpo da resposta do Java são devolvidos como vieram; `503` se o Java estiver fora.
+
+---
+
+## Lembretes pela fila (RabbitMQ)
+
+O Java publica a mensagem **depois** de gravar a consulta (ou pedido/vacina). O Vitalis consome:
+
+```json
+{ "responsavelId": 7, "petId": 5, "tipo": "CONSULTA", "dataAgendada": "2026-11-01",
+  "mensagem": "Consulta agendada para Rex em 2026-11-01T14:30", "referenciaId": 100, "referenciaTipo": "Consulta" }
+```
+
+- Exchange `pethub.lembretes.exchange` (direct, durável), routing key `lembrete.criar`, fila `pethub.lembretes.queue` (durável).
+- `ack` só depois de gravar. Se `referenciaTipo` + `referenciaId` + responsável já existem, o lembrete é **atualizado** (nova data e texto, status volta a `PENDENTE`) em vez de duplicado: assim a mensagem repetida não muda nada, e uma consulta remarcada reaproveita o mesmo lembrete.
+- Mensagem inválida ou de responsável inexistente é **descartada** (para não voltar para sempre); falha do banco devolve a mensagem à fila.
 
 ---
 
-## Integração com o backend Java
+> Atalho: o projeto também lê o arquivo opcional `appsettings.Local.json` (ignorado pelo git) com a seção `RabbitMq`. Use o que preferir; o user-secrets abaixo continua valendo.
 
-O backend Java (`pethub-java`) chama dois endpoints deste serviço:
+## RabbitMQ local (CloudAMQP) com user-secrets
 
-**Buscar responsável por CPF** — ao cadastrar um Pet na clínica:
-```
-GET /api/responsavel/buscar?cpf=00000000000
-Header: X-Service-Token: {valor configurado}
-```
+O segredo não vai em `appsettings.json`. Em desenvolvimento, guarde-o nos *user-secrets* (ficam na sua máquina, fora do repositório), na pasta do projeto:
 
-**Criar lembrete** — ao registrar vacinas, consultas ou pedidos médicos:
-```
-POST /api/lembretes
-Header: X-Service-Token: {valor configurado}
-Body: { responsavelId, petId, tipo, dataAgendada, mensagem, referenciaId, referenciaTipo }
+```bash
+dotnet user-secrets set "RabbitMq:Host" "jaragua-01.lmq.cloudamqp.com"
+dotnet user-secrets set "RabbitMq:Porta" "5671"
+dotnet user-secrets set "RabbitMq:Usuario" "wkgzhezg"
+dotnet user-secrets set "RabbitMq:VirtualHost" "wkgzhezg"
+dotnet user-secrets set "RabbitMq:Ssl" "true"
+dotnet user-secrets set "RabbitMq:Senha" "<senha do painel do CloudAMQP>"
 ```
 
----
+O Java usa os mesmos valores no `.env` (`RABBIT_*`). Em produção, as variáveis de ambiente `RabbitMq__*`.
 
 ## Senhas e segurança
 
 - Senhas dos responsáveis são armazenadas com hash **BCrypt** — nunca em texto puro
 - A senha **nunca é retornada** em nenhum response da API (verificado por teste de integração)
-- Endpoints de integração com o Java são protegidos por `X-Service-Token` no header
+- Tokens JWT assinados com `Jwt__Segredo`; a API não inicia sem uma chave de ao menos 32 bytes
+- A autenticação entre serviços é por JWT HS256: token de 60 s, emissor/público/assinatura/validade conferidos; se o segredo de serviço não estiver configurado, **tudo é recusado**
+- Segredos (banco, JWT, RabbitMQ, segredo de serviço) vêm de variáveis de ambiente
 
 ---
 

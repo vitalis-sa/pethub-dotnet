@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Vitalis.Repositories;
+using Vitalis.Seguranca;
 
 [ApiController]
+[ApenasProprietario]
 [Route("api/responsavel/{responsavelId:long}/contatos")]
 public class ResponsavelContatoController : ControllerBase
 {

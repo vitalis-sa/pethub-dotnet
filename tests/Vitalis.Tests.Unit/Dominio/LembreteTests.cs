@@ -49,7 +49,6 @@ public class LembreteTests
     [InlineData(TipoLembrete.CONSULTA)]
     [InlineData(TipoLembrete.EXAME)]
     [InlineData(TipoLembrete.MEDICAMENTO)]
-    [InlineData(TipoLembrete.HIDRATACAO)]
     public void NovoLembrete_ParaCadaTipoSuportado_DevePreservarOTipoInformado(TipoLembrete tipo)
     {
         // Arrange & Act

@@ -17,7 +17,10 @@ public class Lembrete
     [Column("TIPO")][Required]
     public TipoLembrete Tipo { get; set; }
 
-    [Column("DATA_AGENDADA")] public DateOnly DataAgendada { get; set; } 
+    [Column("DATA_AGENDADA")] public DateOnly DataAgendada { get; set; }
+
+    /// <summary>Horário exato da dose (lembretes de medicamento). Nulo nos demais, que valem para o dia todo.</summary>
+    [Column("DATA_HORA")] public DateTime? DataHora { get; set; }
 
     [Column("MENSAGEM")][Required] public string Mensagem { get; set; } = null!;
 
