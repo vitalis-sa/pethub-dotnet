@@ -187,8 +187,8 @@ export PATH="$PATH:$HOME/.dotnet/tools"
 
 ```bash
 # 1. Clonar o repositório
-git clone https://github.com/vitalis-sa/PetHub-.NET.git
-cd PetHub-.NET
+git clone https://github.com/vitalis-sa/pethub-dotnet.git
+cd pethub-dotnet
 
 # 2. (Opcional) Bancos locais em contêiner
 docker run -d --name vitalis-oracle -p 1521:1521 \
