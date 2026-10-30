@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using Vitalis.Mensageria;
-using Vitalis.Models;
 using Vitalis.Tests.Integration.Fixtures;
 using Xunit;
 

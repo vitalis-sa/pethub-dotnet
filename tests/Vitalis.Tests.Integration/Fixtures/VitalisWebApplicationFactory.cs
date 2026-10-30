@@ -3,12 +3,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
-using Vitalis.Historico;
-using Vitalis.Integracao;
-using Vitalis.Mensageria;
-using Vitalis.Models;
-using Vitalis.Repositories;
-using Vitalis.Seguranca;
 
 namespace Vitalis.Tests.Integration.Fixtures;
 
@@ -100,7 +94,9 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
             DataAgendada = new DateOnly(2026, 9, 15), Mensagem = "Vacina antirrábica agendada",
             ReferenciaId = referenciaId, ReferenciaTipo = "VacinaTratamento"
         };
-        scope.ServiceProvider.GetRequiredService<ILembreteRepository>().Add(lembrete);
+        var repositorio = scope.ServiceProvider.GetRequiredService<ILembreteRepository>();
+        repositorio.Adicionar(lembrete);
+        repositorio.SalvarAlteracoes();
         return lembrete.Id;
     }
 
@@ -116,7 +112,7 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
     public HttpClient CreateClientComServiceToken(string? token = null)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add(AutenticadorDeServico.Cabecalho, "Bearer " + (token ?? ChavesDeTeste.TokenDoJava()));
+        client.DefaultRequestHeaders.Add(CabecalhosDeServico.Autorizacao, "Bearer " + (token ?? ChavesDeTeste.TokenDoJava()));
         return client;
     }
 }

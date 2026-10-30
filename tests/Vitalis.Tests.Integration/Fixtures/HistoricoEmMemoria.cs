@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using Vitalis.Consultas;
-using Vitalis.Historico;
 
 namespace Vitalis.Tests.Integration.Fixtures;
 
@@ -21,7 +19,7 @@ public sealed class HistoricoEmMemoria : IHistoricoDeMensagens
 
     public void Limpar() => _registros.Clear();
 
-    public Task<(IReadOnlyList<RegistroDeMensagem> Itens, long Total)> ConsultarAsync(
+    public Task<Pagina<RegistroDeMensagem>> ConsultarAsync(
         long responsavelId, FiltroDeHistorico filtro, ConsultaPaginada consulta, CancellationToken ct = default)
     {
         var consultaBase = _registros.Where(r => r.ResponsavelId == responsavelId
@@ -36,7 +34,7 @@ public sealed class HistoricoEmMemoria : IHistoricoDeMensagens
         };
 
         var lista = ordenada.ToList();
-        IReadOnlyList<RegistroDeMensagem> pagina = lista.Skip(consulta.Ignorar).Take(consulta.Tamanho).ToList();
-        return Task.FromResult((pagina, (long)lista.Count));
+        var pagina = lista.Skip(consulta.Deslocamento()).Take(consulta.Tamanho).ToList();
+        return Task.FromResult(new Pagina<RegistroDeMensagem>(pagina, lista.Count));
     }
 }

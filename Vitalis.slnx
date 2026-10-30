@@ -1,7 +1,12 @@
 <Solution>
-  <Folder Name="/tests/">
-    <Project Path="tests/Vitalis.Tests.Integration/Vitalis.Tests.Integration.csproj" />
-    <Project Path="tests/Vitalis.Tests.Unit/Vitalis.Tests.Unit.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/Vitalis.Domain/Vitalis.Domain.csproj" />
+    <Project Path="src/Vitalis.Application/Vitalis.Application.csproj" />
+    <Project Path="src/Vitalis.Infrastructure/Vitalis.Infrastructure.csproj" />
+    <Project Path="src/Vitalis.Api/Vitalis.Api.csproj" />
   </Folder>
-  <Project Path="Vitalis.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/Vitalis.Tests.Unit/Vitalis.Tests.Unit.csproj" />
+    <Project Path="tests/Vitalis.Tests.Integration/Vitalis.Tests.Integration.csproj" />
+  </Folder>
 </Solution>

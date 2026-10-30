@@ -3,8 +3,6 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using Vitalis.Configuracao;
-using Vitalis.Seguranca;
 
 namespace Vitalis.Tests.Unit.Fixtures;
 

@@ -14,7 +14,7 @@ Como conversam:
 
 | Fluxo | Direção | Como |
 |---|---|---|
-| Lembrete (consulta marcada, vacina, exame, medicamento) | Java → **RabbitMQ** → Vitalis | O Java só publica; **só o Vitalis consome** (`Mensageria/LembreteConsumidor`) |
+| Lembrete (consulta marcada, vacina, exame, medicamento) | Java → **RabbitMQ** → Vitalis | O Java só publica; **só o Vitalis consome** (`Vitalis.Infrastructure/Mensageria/LembreteConsumidor`) |
 | Responsável usa pets, consultas, exames... | App → Vitalis `/api/clinico/**` → Java | O Vitalis valida o JWT e repassa ao Java com um JWT de serviço HS256 de 60 s (`X-Service-Authorization`, `sub` = responsável); o Java aplica as regras de posse |
 | Java precisa do nome/e-mail/CPF do responsável | Java → Vitalis | `GET /api/responsavel/{id}` e `/buscar?cpf=` com JWT de serviço assinado pelo Java |
 | Responsável é excluído | Vitalis → Java | `DELETE /api/pets/responsavel/{id}` **antes** de apagar o cadastro; se o Java não confirmar, nada é apagado |
@@ -22,10 +22,11 @@ Como conversam:
 O veterinário não passa por aqui: ele faz login direto no Java.
 
 **Evolução por sprint:** a 3ª sprint trouxe monitoramento e observabilidade (Health Checks, Serilog e OpenTelemetry)
-e a suíte de testes no padrão AAA. A **4ª sprint** consolida tudo e acrescenta: **MongoDB** para o histórico de
-mensagens da fila, **migrations do EF Core**, **paginação, ordenação e filtros**, **HATEOAS**, **tratamento global
-de exceções** com respostas de erro num formato único (`application/problem+json`) e o **OpenAPI exportado**
-em [`docs/openapi.json`](docs/openapi.json).
+e a suíte de testes no padrão AAA. A **4ª sprint** consolida tudo: a solução foi reorganizada em **Clean Architecture**
+(projetos `Domain`, `Application`, `Infrastructure` e `Api`) e ganhou **MongoDB** para o histórico de mensagens da
+fila, **migrations do EF Core**, **paginação, ordenação e filtros**, **HATEOAS**, **tratamento global de exceções** com
+respostas de erro num formato único (`application/problem+json`) e o **OpenAPI exportado** em
+[`docs/openapi.json`](docs/openapi.json).
 
 ---
 
@@ -78,19 +79,94 @@ em [`docs/openapi.json`](docs/openapi.json).
 
 ## Arquitetura
 
+A solução segue a **Clean Architecture**: quatro projetos, e as dependências apontam sempre para dentro. O domínio
+não conhece ninguém; a aplicação conhece só o domínio e define **portas** (interfaces) que a infraestrutura
+implementa; a API só traduz HTTP e compõe tudo no `Program.cs`.
+
+```mermaid
+flowchart TB
+    Api["<b>Vitalis.Api</b><br/>Controllers · Middlewares · ProblemDetails<br/>HATEOAS · Swagger · Program.cs (composição)"]
+    Infra["<b>Vitalis.Infrastructure</b><br/>EF Core + Oracle · MongoDB · RabbitMQ<br/>JWT · BCrypt · cliente do pethub-java · health checks"]
+    App["<b>Vitalis.Application</b><br/>Casos de uso (Servico*) · Processador da fila<br/>Portas: IResponsavelRepository, IHistoricoDeMensagens, IRelogio..."]
+    Dom["<b>Vitalis.Domain</b><br/>Entidades · Enums<br/>Regras: RegraDoPrincipal, AgendaDeDoses, Lembrete.Reagendar"]
+
+    Api --> App
+    Api -. "só para registrar as<br/>implementações (DI)" .-> Infra
+    Infra --> App
+    App --> Dom
+```
+
+| Projeto | Depende de | Responsabilidade | Não pode conhecer |
+|---|---|---|---|
+| **`Vitalis.Domain`** | nada | Entidades (`Responsavel`, `ResponsavelEndereco`, `ResponsavelContato`, `Lembrete`), enums e regras puras: um só endereço/contato principal (`RegraDoPrincipal`), horários das doses (`AgendaDeDoses`), reagendar e liberar lembretes | banco, HTTP, frameworks |
+| **`Vitalis.Application`** | Domain | Casos de uso (`ServicoDeResponsaveis`, `ServicoDeEnderecos`, `ServicoDeContatos`, `ServicoDeLembretes`, `ProcessadorDeLembrete`), DTOs, paginação/filtros, `Resultado`/`Erro` e as **portas**: repositórios, histórico, relógio, hash de senha, emissor de JWT, autenticador de serviço, cliente do Java | EF Core, MongoDB, RabbitMQ, ASP.NET |
+| **`Vitalis.Infrastructure`** | Application | Implementa as portas: repositórios EF Core + Oracle (mapeamento por Fluent API em `Persistencia/Configuracoes`), migrations, histórico no MongoDB, consumidor RabbitMQ, job das doses, JWT, BCrypt, relógio de São Paulo, cliente HTTP do Java, health checks | a API |
+| **`Vitalis.Api`** | Application (+ Infrastructure só no `Program.cs`) | Controllers finos, tradução `Resultado` → HTTP, `ProblemDetails`, HATEOAS, autenticação JWT, Swagger, Serilog e OpenTelemetry | regras de negócio |
+
+A regra de dependência é verificada por testes (`tests/Vitalis.Tests.Unit/Arquitetura`): se o domínio ganhar um
+atributo de banco ou a aplicação passar a usar o EF Core, a suíte falha.
+
+**Princípios aplicados**
+
+- **Inversão de dependência (D):** os casos de uso dependem de interfaces (`IResponsavelRepository`, `IRelogio`,
+  `IHasherDeSenha`...). Cada camada se registra pela própria extensão (`AddAplicacao()`, `AddInfraestrutura(config)`).
+- **Responsabilidade única (S):** controller só traduz HTTP, serviço só orquestra o caso de uso, repositório só
+  consulta e grava, e entidade guarda as próprias regras.
+- **Aberto/fechado (O):** endereços e contatos compartilham `ServicoDeItensDoResponsavel<TItem, TDto, TFiltro>`; um
+  novo tipo de item ganha o fluxo inteiro (posse, paginação, principal) declarando só o que muda.
+- **Erros previstos sem exceção:** os casos de uso devolvem `Resultado`/`Erro` (`NaoEncontrado`, `Proibido`,
+  `Conflito`...), que a API traduz para `problem+json`. Exceção fica para o inesperado, tratado pelo tratador global.
+
+### Estrutura da solução
+
+```
+pethub-dotnet/
+├── Vitalis.slnx
+├── Dockerfile                          # imagem do Cloud Run (publica src/Vitalis.Api)
+├── docs/openapi.json                   # especificação exportada do Swagger
+├── src/
+│   ├── Vitalis.Domain/
+│   │   ├── Entidades/                  # Responsavel, ResponsavelEndereco, ResponsavelContato, Lembrete
+│   │   ├── Enums/                      # TipoLembrete, StatusLembrete
+│   │   └── Servicos/                   # RegraDoPrincipal, AgendaDeDoses
+│   ├── Vitalis.Application/
+│   │   ├── Abstracoes/                 # portas: repositórios, relógio, hash, JWT, cliente do Java
+│   │   ├── Servicos/                   # casos de uso
+│   │   ├── Mensageria/                 # ProcessadorDeLembrete (mensagens da fila)
+│   │   ├── Consultas/                  # ConsultaPaginada, filtros, Pagina<T>
+│   │   ├── Dtos/  Historico/  Resultados/  Observabilidade/
+│   │   └── DependencyInjection.cs      # AddAplicacao()
+│   ├── Vitalis.Infrastructure/
+│   │   ├── Persistencia/               # AppDbContext, Configuracoes (Fluent API), Repositorios, Migrations
+│   │   ├── Historico/                  # MongoDB
+│   │   ├── Mensageria/                 # consumidor RabbitMQ
+│   │   ├── Agendamento/                # liberação das doses de hora em hora
+│   │   ├── Seguranca/  Integracao/  Configuracao/  Health/
+│   │   └── DependencyInjection.cs      # AddInfraestrutura(config)
+│   └── Vitalis.Api/
+│       ├── Controllers/                # Responsaveis, Enderecos, Contatos, Lembretes, GatewayClinico
+│       ├── Erros/                      # ProblemDetails, tratador global, Resultado → HTTP
+│       ├── Hateoas/  Respostas/  Middlewares/  Seguranca/  Health/
+│       ├── appsettings.json
+│       └── Program.cs                  # raiz de composição
+└── tests/
+    ├── Vitalis.Tests.Unit/             # Dominio/  Aplicacao/  Api/  Infraestrutura/  Arquitetura/
+    └── Vitalis.Tests.Integration/      # Endpoints/  Monitoramento/  Fixtures/
+```
+
 ### Visão da solução
 
 ```mermaid
 flowchart LR
     App["App mobile<br/>(Expo)"]
 
-    subgraph Vitalis["Vitalis API (.NET 10)"]
+    subgraph Vitalis["Vitalis"]
         direction TB
-        MW["Pipeline HTTP<br/>Correlation ID · tratador global de erros<br/>JWT · ApenasProprietario"]
-        CTRL["Controllers<br/>Responsável · Endereço · Contato<br/>Lembrete · Gateway clínico"]
-        APL["Aplicação<br/>Consultas (paginação/filtros) · HATEOAS<br/>Mensageria · Doses · Segurança"]
-        REPO["Repositórios<br/>EF Core · MongoDB.Driver"]
-        MW --> CTRL --> APL --> REPO
+        API["Vitalis.Api<br/>pipeline HTTP · controllers"]
+        APL["Vitalis.Application<br/>casos de uso"]
+        INF["Vitalis.Infrastructure<br/>repositórios · consumidor · clientes"]
+        API --> APL
+        INF -. implementa as portas .-> APL
     end
 
     Java["pethub-java<br/>(Spring Boot)"]
@@ -98,31 +174,14 @@ flowchart LR
     Oracle[("Oracle<br/>TB_RESPONSAVEL, TB_LEMBRETE...<br/>EF Core + migrations")]
     Mongo[("MongoDB<br/>historico_mensagens")]
 
-    App -- "HTTPS + JWT do responsável" --> MW
-    CTRL -- "/api/clinico/** (JWT de serviço)" --> Java
-    Java -- "GET /api/responsavel (JWT de serviço)" --> MW
+    App -- "HTTPS + JWT do responsável" --> API
+    INF -- "/api/clinico/** (JWT de serviço)" --> Java
+    Java -- "GET /api/responsavel (JWT de serviço)" --> API
     Java -- "publica lembretes" --> Rabbit
-    Rabbit -- "consome" --> APL
-    REPO --> Oracle
-    REPO --> Mongo
+    Rabbit -- "consome" --> INF
+    INF --> Oracle
+    INF --> Mongo
 ```
-
-### Camadas
-
-A API é um único projeto organizado em camadas por pasta. A dependência vai sempre de cima para baixo: controllers
-não falam com o banco, e repositórios não conhecem HTTP.
-
-| Camada | Pastas | Responsabilidade |
-|---|---|---|
-| **Apresentação (HTTP)** | `Controllers/`, `Middlewares/`, `Erros/`, `Dto/` | Rotas REST, validação de entrada, respostas com HATEOAS, `ProblemDetails` |
-| **Aplicação** | `Consultas/`, `Hateoas/`, `Mensageria/`, `Doses/`, `Seguranca/` | Paginação/filtros, montagem de links, processamento das mensagens da fila, agenda de doses, JWT e posse dos dados |
-| **Domínio** | `Models/` | Entidades `Responsavel`, `ResponsavelEndereco`, `ResponsavelContato`, `Lembrete` e enums |
-| **Infraestrutura** | `Repositories/`, `Historico/`, `Dados/`, `Migrations/`, `Integracao/`, `Health/` | EF Core + Oracle, MongoDB, cliente HTTP do Java, health checks |
-| **Transversal** | `Configuracao/`, `Observabilidade/`, `Program.cs` | Options, relógio, métricas/tracing, composição da injeção de dependência |
-
-Todas as dependências são registradas por interface em `Program.cs` (`IResponsavelRepository`,
-`IHistoricoDeMensagens`, `IPethubJavaClient`, `IEmissorDeToken`, `IAutenticadorDeServico`, `IProcessadorDeLembrete`...),
-o que permite trocá-las nos testes por mocks (unitários) ou por versões em memória (integração).
 
 ### Caminho de uma requisição
 
@@ -131,20 +190,24 @@ sequenceDiagram
     autonumber
     participant App as App
     participant P as Pipeline<br/>(CorrelationId, ExceptionHandler, JWT)
-    participant F as [ApenasProprietario]
-    participant C as Controller
-    participant R as Repositório
-    participant DB as Oracle / MongoDB
+    participant F as ApenasProprietario
+    participant C as LembretesController
+    participant S as ServicoDeLembretes
+    participant R as LembreteRepository
+    participant DB as Oracle
 
     App->>P: GET /api/lembretes/responsavel/7?tipo=VACINA&pagina=2
     P->>F: token válido (sub = 7)
     F->>C: id da rota = id do token
-    C->>R: Consultar(7, filtro, consulta)
+    C->>S: Listar(7, filtro, consulta)
+    S->>S: valida ordenação e período
+    S->>R: Consultar(7, filtro, consulta)
     R->>DB: WHERE ... ORDER BY ... OFFSET/FETCH
     DB-->>R: itens + total
-    R-->>C: (itens, total)
+    R-->>S: (itens, total)
+    S-->>C: Resultado com a Pagina
     C-->>App: 200 { itens, pagina, totalDeItens, links }
-    Note over P,C: Qualquer exceção não tratada volta como<br/>500 application/problem+json com o correlationId
+    Note over S,C: Erro previsto (Invalido, Proibido...) vira problem+json com o status certo.<br/>Exceção não tratada vira 500 problem+json com o correlationId.
 ```
 
 ### Caminho de uma mensagem da fila
@@ -153,15 +216,15 @@ sequenceDiagram
 sequenceDiagram
     participant J as pethub-java
     participant Q as RabbitMQ
-    participant L as LembreteConsumidor
-    participant P as ProcessadorDeLembrete
+    participant L as LembreteConsumidor (Infrastructure)
+    participant P as ProcessadorDeLembrete (Application)
     participant O as Oracle (TB_LEMBRETE)
     participant M as MongoDB (historico_mensagens)
 
     J->>Q: publica {responsavelId, tipo, dataAgendada, ...}
     Q->>L: entrega
     L->>P: Processar(corpo)
-    P->>O: cria, atualiza ou agenda doses
+    P->>O: cria, reagenda ou agenda doses
     P->>M: registra resultado e motivo
     P-->>L: Confirmar / Descartar / Repetir
     L-->>Q: ack (confirmar), reject (descartar) ou nack com requeue (repetir)
@@ -200,9 +263,9 @@ docker run -d --name vitalis-mongo -p 27017:27017 mongo:7
 cp .env.example .env
 set -a && . ./.env && set +a
 
-# 4. Restaurar e rodar (as migrations são aplicadas na subida)
+# 4. Restaurar e rodar a API (as migrations são aplicadas na subida)
 dotnet restore
-dotnet run
+dotnet run --project src/Vitalis.Api
 ```
 
 A API sobe em `http://localhost:5192` e o Swagger fica em `http://localhost:5192/swagger`
@@ -210,20 +273,31 @@ A API sobe em `http://localhost:5192` e o Swagger fica em `http://localhost:5192
 
 No devcontainer (`.devcontainer/`), o `.env` já é carregado automaticamente.
 
+**Com Docker** (a mesma imagem do Cloud Run):
+
+```bash
+docker build -t vitalis-api .
+docker run --rm -p 8080:8080 --env-file .env vitalis-api
+```
+
 ### Migrations
 
-As tabelas do Vitalis são criadas e evoluídas pelas **migrations do EF Core** (pasta `Migrations/`). Elas são
-aplicadas automaticamente na subida (`Dados/InicializadorDoBanco.cs`) e também podem ser aplicadas pela linha de comando:
+As tabelas do Vitalis são criadas e evoluídas pelas **migrations do EF Core**
+(`src/Vitalis.Infrastructure/Persistencia/Migrations/`). Elas são aplicadas automaticamente na subida
+(`Persistencia/InicializadorDoBanco.cs`) e também podem ser aplicadas pela linha de comando:
 
 ```bash
 # Aplicar as migrations pendentes no banco de ConnectionStrings__OracleConnection
-dotnet ef database update
+dotnet ef database update --project src/Vitalis.Infrastructure
 
-# Criar uma migration depois de mudar o modelo
-dotnet ef migrations add NomeDaMudanca
+# Criar uma migration depois de mudar o mapeamento (Persistencia/Configuracoes)
+dotnet ef migrations add NomeDaMudanca --project src/Vitalis.Infrastructure
+
+# Conferir se o modelo tem mudança sem migration
+dotnet ef migrations has-pending-model-changes --project src/Vitalis.Infrastructure
 
 # Gerar o SQL (para revisão ou para um DBA aplicar)
-dotnet ef migrations script --idempotent -o migracoes.sql
+dotnet ef migrations script --idempotent -o migracoes.sql --project src/Vitalis.Infrastructure
 ```
 
 - As migrations só criam e alteram as tabelas do Vitalis (`TB_RESPONSAVEL`, `TB_RESPONSAVEL_ENDERECO`,
@@ -232,7 +306,8 @@ dotnet ef migrations script --idempotent -o migracoes.sql
 - **Bancos criados antes das migrations** (pelo antigo `CreateTables()`) já têm as tabelas, mas não têm o histórico.
   Na primeira subida, o Vitalis acrescenta a coluna `DATA_HORA` se ela faltar e registra a migration inicial como
   aplicada (*baseline*), sem recriar nada e sem perder dados.
-- `Dados/AppDbContextFactory.cs` permite que o `dotnet ef` monte o contexto sem subir a API inteira.
+- `Persistencia/AppDbContextFactory.cs` permite que o `dotnet ef` monte o contexto sem subir a API inteira.
+- O mapeamento das tabelas fica em `Persistencia/Configuracoes` (Fluent API), fora das entidades do domínio.
 - Para desligar a aplicação automática: `Banco__AplicarMigracoes=false`.
 
 ---
@@ -243,12 +318,14 @@ dotnet ef migrations script --idempotent -o migracoes.sql
 |---|---|---|
 | **O que guarda** | Responsáveis, endereços, contatos e lembretes | Histórico de cada mensagem recebida da fila e do que foi feito com ela |
 | **Por quê** | Dados com relacionamentos, integridade (FK) e consultas por filtro | Registro de eventos, só de inserção e com formato livre: guarda até mensagens inválidas, como vieram |
-| **Acesso** | EF Core, `Repositories/*Repository.cs` | MongoDB.Driver, `Historico/HistoricoDeMensagensMongo.cs` |
+| **Acesso** | EF Core, `Infrastructure/Persistencia/Repositorios` | MongoDB.Driver, `Infrastructure/Historico/HistoricoDeMensagensMongo.cs` |
 | **Esquema** | Migrations (`Migrations/`) | Coleção `historico_mensagens` + índice `ix_responsavel_recebida` criado na subida |
 | **Se estiver fora** | `/health` Unhealthy (503) | API funciona; o histórico fica desligado e o `/health` mostra `mongodb` como Degraded |
 
-Os repositórios seguem o padrão **Repository**: os controllers dependem de interfaces (`IResponsavelRepository`,
-`ILembreteRepository`, `IHistoricoDeMensagens`...) e as implementações concretas ficam na infraestrutura.
+Os repositórios seguem o padrão **Repository**: os casos de uso dependem de interfaces declaradas na aplicação
+(`IResponsavelRepository`, `ILembreteRepository`, `IHistoricoDeMensagens`...) e as implementações concretas ficam em
+`Vitalis.Infrastructure`. Os repositórios só consultam e gravam; as regras (principal, reagendamento, liberação de
+doses) ficam no domínio e nos casos de uso. As escritas são confirmadas de uma vez com `SalvarAlteracoes()`.
 
 Documento da coleção `historico_mensagens`:
 
@@ -357,7 +434,7 @@ Todo erro da API sai no mesmo formato, **`application/problem+json`** (RFC 9457)
 
 | Origem | Exemplo | Quem monta |
 |---|---|---|
-| Regra do controller | `404` endereço de outro responsável, `409` CPF duplicado | `Erros/Problemas.cs` |
+| Regra de negócio (caso de uso devolve um `Erro`) | `404` endereço de outro responsável, `409` CPF duplicado, `403` lembrete de outro | `Erros/RespostasDeResultado.cs` + `Erros/Problemas.cs` |
 | Validação automática do `[ApiController]` | `400` JSON malformado, `tamanho=500` | `ProblemDetailsFactory` + `CustomizeProblemDetails` |
 | Pipeline sem corpo | `401` sem token, `403`, rota inexistente | `UseStatusCodePages` |
 | Exceção não tratada | `500` (genérico), `503` serviço clínico fora | `Erros/TratadorGlobalDeExcecoes.cs` (`IExceptionHandler`) |
@@ -408,7 +485,7 @@ O status agregado define o código HTTP:
 | Alguma degradada e nenhuma com falha | `Degraded` | `200 OK` |
 | Qualquer verificação com falha | `Unhealthy` | `503 Service Unavailable` |
 
-O corpo é escrito em **JSON** por um `ResponseWriter` customizado (`Health/RespostaHealthCheck.cs`), que detalha
+O corpo é escrito em **JSON** por um `ResponseWriter` customizado (`src/Vitalis.Api/Health/RespostaHealthCheck.cs`), que detalha
 **cada verificação**:
 
 | Campo | Conteúdo |
@@ -460,13 +537,14 @@ O Serilog substitui o provedor de logging padrão da Microsoft (`builder.Host.Us
 | Console | Template `[{Timestamp:HH:mm:ss} {Level:u3}] [{CorrelationId}] {Message:lj}` |
 | Arquivo | `logs/vitalis-YYYYMMDD.log`, com rotação diária |
 
-**Níveis de log:**
+**Níveis de log.** Os logs de negócio ficam nos casos de uso (`Vitalis.Application`); os de infraestrutura, nos
+componentes de `Vitalis.Infrastructure` (consumidor, migrations, MongoDB):
 
 | Nível | Quando |
 |---|---|
 | `Information` | Início das consultas, cadastros e atualizações bem-sucedidas, migrations aplicadas, mensagens processadas |
 | `Warning` | Recurso não encontrado, credenciais inválidas, token de serviço inválido, mensagem descartada, MongoDB indisponível |
-| `Error` | Exceções não tratadas (`TratadorGlobalDeExcecoes`), falha inesperada no cadastro, falha ao gravar lembrete da fila, Java sem confirmar a exclusão dos pets, falha nas migrations. Sempre com `_logger.LogError(ex, ...)` e a exceção completa |
+| `Error` | Exceções não tratadas, como uma falha inesperada no cadastro (`TratadorGlobalDeExcecoes`), falha ao gravar lembrete da fila, Java sem confirmar a exclusão dos pets, consumidor sem conexão com o RabbitMQ, falha nas migrations. Sempre com `LogError(ex, ...)` e a exceção completa |
 
 **Correlation ID:** o `CorrelationIdMiddleware` lê o header `X-Correlation-ID` da requisição (ou gera um novo GUID),
 devolve o valor no header da resposta e o injeta no `LogContext` do Serilog. Assim **todos os logs daquela requisição
@@ -510,7 +588,7 @@ por `AddOtlpExporter()` para enviar os dados a um coletor externo (Jaeger, Prome
 
 ## Configuração
 
-**Segredos e endereços vêm de variáveis de ambiente**, nunca do código. No `appsettings.json` ficam só valores vazios
+**Segredos e endereços vêm de variáveis de ambiente**, nunca do código. No `src/Vitalis.Api/appsettings.json` ficam só valores vazios
 ou de exemplo. O arquivo [`.env.example`](.env.example) traz todas as variáveis, já com os nomes que a API lê.
 
 | Variável | Para quê | Obrigatória |
@@ -531,33 +609,35 @@ ou de exemplo. O arquivo [`.env.example`](.env.example) traz todas as variáveis
   ligação (idempotente), então a mensagem não se perde se o Java publicar antes do Vitalis subir.
 - **Cloud Run (padrão, sem instância mínima):** o consumidor só esvazia a fila enquanto a instância estiver acordada.
   Os lembretes ficam guardados na fila durável e são gravados na próxima vez que o serviço subir.
-- **Desenvolvimento:** além do `.env`, valem os *user-secrets* (`dotnet user-secrets set "RabbitMq:Senha" "..."`) e
+- **Desenvolvimento:** além do `.env`, valem os *user-secrets* (`dotnet user-secrets set "RabbitMq:Senha" "..." --project src/Vitalis.Api`) e
   o arquivo opcional `appsettings.Local.json`, ignorado pelo git.
 
 ---
 
 ## Testes automatizados
 
-A solução tem **220 testes**, organizados em dois projetos:
+A solução tem **268 testes**, organizados em dois projetos:
 
 | Projeto | Testes | Escopo |
 |---|---|---|
-| `tests/Vitalis.Tests.Unit` | 146 | Domínio, Aplicação, Mensageria e Segurança, com dependências isoladas por Moq |
+| `tests/Vitalis.Tests.Unit` | 194 | Domínio, casos de uso da Aplicação, camada HTTP, Infraestrutura (JWT, hash) e regras de arquitetura, com dependências isoladas por Moq |
 | `tests/Vitalis.Tests.Integration` | 74 | Fluxo HTTP completo via `WebApplicationFactory` |
 
 ### Cobertura
 
 Medida com coverlet (`dotnet test --collect:"XPlat Code Coverage"`), somando os dois projetos:
 
-| Camada | Cobertura de linhas |
+| Projeto | Cobertura de linhas |
 |---|---|
-| **Domínio** (`Models/`) | **97,4%** |
-| **Aplicação** (`Controllers/`, `Consultas/`, `Hateoas/`, `Erros/`, `Dto/`, `Mensageria/`, `Doses/`, `Seguranca/`) | **91,4%** |
-| Total do projeto, sem as migrations geradas | 78,5% |
+| **`Vitalis.Domain`** | **97,3%** |
+| **`Vitalis.Application`** | **99,8%** |
+| `Vitalis.Api` | 97,1% |
+| `Vitalis.Infrastructure` | 56,7% |
+| Total, sem as migrations geradas | 82,3% |
 
-O ponto menos coberto é a infraestrutura que depende de servidores reais (cliente HTTP do Java e implementação Mongo
-do histórico). Nos testes de integração, o MongoDB é substituído por `HistoricoEmMemoria`, com o mesmo filtro, ordem
-e paginação. A implementação real foi validada contra um MongoDB 7 e um Oracle 23 em contêiner.
+A infraestrutura é a menos coberta porque depende de servidores reais (Oracle, MongoDB, RabbitMQ, pethub-java). Nos
+testes de integração, o MongoDB é substituído por `HistoricoEmMemoria` e o Java por `JavaFalso`. As implementações
+reais foram validadas contra Oracle 23, MongoDB 7 e RabbitMQ 3 em contêiner, rodando a imagem Docker da API.
 
 ### Como executar
 
@@ -567,7 +647,7 @@ dotnet test tests/Vitalis.Tests.Unit                # só unitários
 dotnet test tests/Vitalis.Tests.Integration         # só integração
 dotnet test --collect:"XPlat Code Coverage"         # com cobertura (coverage.cobertura.xml em TestResults/)
 dotnet test --logger "console;verbosity=detailed"   # nome de cada teste
-dotnet test --filter FullyQualifiedName~ConsultasEHateoasEndpointsTests
+dotnet test --filter FullyQualifiedName~Arquitetura # só as regras de dependência entre as camadas
 ```
 
 No Visual Studio: **Teste → Gerenciador de Testes** (`Ctrl + E, T`) e **Executar Todos os Testes**.
@@ -589,22 +669,23 @@ Todos os testes seguem o padrão **AAA (Arrange, Act, Assert)**, com as três et
 
 ```csharp
 [Fact]
-public void GetByResponsavel_SegundaDeTresPaginas_DeveCalcularOTotalEOferecerAnteriorEProxima()
+public void Remover_EnderecoPrincipal_DevePassarAMarcacaoParaOMaisRecenteDosQueSobram()
 {
     // Arrange
-    _repositorioMock.Setup(r => r.Consultar(1, It.IsAny<FiltroDeLembretes>(), It.IsAny<ConsultaPaginada>()))
-        .Returns(([NovoLembrete()], 25));
-    var controller = CriarController(responsavelLogado: 1);
+    var principal = NovoEndereco(id: 1, principal: true);
+    var antigo = NovoEndereco(id: 2);
+    var recente = NovoEndereco(id: 3);
+    NoBanco(1, principal, antigo, recente);
 
     // Act
-    var resultado = controller.GetByResponsavel(1, new FiltroDeLembretes(), new ConsultaPaginada { Pagina = 2, Tamanho = 10 });
+    var resultado = _servico.Remover(1, 1);
 
     // Assert
-    var pagina = resultado.Should().BeOfType<OkObjectResult>().Which.Value
-        .Should().BeOfType<PaginaDeResultados<LembreteResposta>>().Subject;
-    pagina.TotalDePaginas.Should().Be(3);
-    pagina.Links.Should().Contain(l => l.Rel == "prev" && l.Href.Contains("pagina=1"));
-    pagina.Links.Should().Contain(l => l.Rel == "next" && l.Href.Contains("pagina=3"));
+    resultado.Sucesso.Should().BeTrue();
+    recente.Principal.Should().BeTrue();
+    antigo.Principal.Should().BeFalse();
+    _repositorio.Verify(r => r.Remover(principal), Times.Once);
+    _repositorio.Verify(r => r.SalvarAlteracoes(), Times.Once);
 }
 ```
 
@@ -617,23 +698,35 @@ public void GetByResponsavel_SegundaDeTresPaginas_DeveCalcularOTotalEOferecerAnt
 
 ### O que os testes cobrem
 
-**Unitários, Domínio** (`Dominio/`): regras de validação de `Responsavel`, `ResponsavelEndereco`,
-`ResponsavelContato` e `Lembrete`, como campos obrigatórios, limites de tamanho, valores padrão e enums.
+Os testes unitários seguem a mesma divisão em camadas da solução:
 
-**Unitários, Aplicação** (`Aplicacao/`): os controllers com dependências simuladas por Moq. Cobrem sucesso, `404`,
-`400`, `409`, `401`, `403`, `503` e `500` com `LogError`; paginação (total de páginas, `prev`/`next`), filtros
-repassados ao repositório, ordenação por campo inválido, links HATEOAS de cada recurso, corpo de erro em
-`ProblemDetails` e o histórico com o MongoDB ligado e desligado.
+**`Dominio/`**: validação das entidades (campos obrigatórios, limites de tamanho, valores padrão, enums), a regra do
+item principal (`RegraDoPrincipal`), o reagendamento e a liberação de lembretes, e a agenda de doses.
 
-**Unitários, Mensageria e Segurança**: `ProcessadorDeLembrete` (mensagem válida, repetida, inválida, responsável
-inexistente, banco fora → devolve à fila, registro no histórico de cada desfecho, histórico fora do ar sem afetar a
-fila), agenda de doses, emissão do JWT, JWT de serviço e o atributo `[ApenasProprietario]`.
+**`Aplicacao/`**: os casos de uso com as portas simuladas por Moq.
+- `ServicoDeResponsaveis`: senha guardada só como hash, data do relógio, CPF duplicado, login (senha errada, e-mail
+  inexistente, conta desativada), exclusão que chama o Java **antes** de remover e desiste se ele não confirmar.
+- `ServicoDeEnderecos` / `ServicoDeContatos`: posse (item de outro responsável é 404), principal ao incluir,
+  atualizar, definir e remover, numa gravação só.
+- `ServicoDeLembretes`: filtros e ordenação, período invertido, posse (`Proibido`), histórico com o MongoDB ligado e
+  desligado, liberação das doses vencidas.
+- `ProcessadorDeLembrete`: mensagem válida, repetida (reagenda), inválida, de responsável inexistente, tratamento
+  com doses, cancelamento, banco fora (devolve à fila) e o registro de cada desfecho no histórico.
+
+**`Api/`**: tradução de cada tipo de `Erro` para o status e o `ProblemDetails` certos, envelope paginado e links
+HATEOAS, `201` com `Location` e token, token de serviço na busca por CPF, gateway clínico e `[ApenasProprietario]`.
+
+**`Infraestrutura/`**: emissão e validação dos JWTs (do responsável e de serviço) e o hash BCrypt.
+
+**`Arquitetura/`**: a regra de dependência. O domínio não referencia outras camadas nem frameworks, a aplicação
+depende só do domínio e não conhece EF Core/MongoDB/RabbitMQ/ASP.NET, a infraestrutura não conhece a API e as
+entidades não têm atributos de mapeamento de banco.
 
 **Integração, Endpoints**: cadastro e login com token, senha nunca na resposta, `401`/`403` entre responsáveis,
 exclusão que depende do Java, lembretes criados pela fila sem duplicar, gateway clínico, regra de endereço e
 contato principal. `ConsultasEHateoasEndpointsTests` cobre paginação navegando pelo link `next`, ordenação, filtros,
 links que levam aos recursos relacionados e o histórico. `ErrosEndpointsTests` cobre `problem+json` em rota
-inexistente, sem token, erro do controller com `correlationId` e exceção não tratada sem vazar detalhes.
+inexistente, sem token, erro de regra com `correlationId` e exceção não tratada sem vazar detalhes.
 
 **Integração, Monitoramento**: `/health` com as três verificações, `X-Correlation-ID` e o documento OpenAPI.
 

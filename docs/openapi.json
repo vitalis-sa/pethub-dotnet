@@ -6,6 +6,710 @@
     "version": "v1"
   },
   "paths": {
+    "/api/responsavel/{responsavelId}/contatos": {
+      "get": {
+        "tags": [
+          "Contatos"
+        ],
+        "summary": "Lista os contatos do responsável, com filtros, ordenação e paginação.",
+        "description": "Ordenação (`ordenarPor`): `id` (padrão), `tipo`, `telefone`.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "description": "`CELULAR` ou `TELEFONE`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Itens por página (1 a 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
+            "schema": {
+              "pattern": "^(?i)(asc|desc)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContatoRespostaPaginaDeResultados"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Contatos"
+        ],
+        "summary": "Adiciona um contato. O primeiro do responsável vira o principal.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContatoDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContatoDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContatoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContatoResposta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/contatos/{id}": {
+      "get": {
+        "tags": [
+          "Contatos"
+        ],
+        "summary": "Busca um contato do responsável.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContatoResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Contatos"
+        ],
+        "summary": "Atualiza um contato.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContatoDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContatoDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContatoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Contatos"
+        ],
+        "summary": "Remove um contato. Se era o principal, o mais recente dos que sobram assume.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/contatos/{id}/principal": {
+      "patch": {
+        "tags": [
+          "Contatos"
+        ],
+        "summary": "Define o contato como principal e desmarca os demais.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/enderecos": {
+      "get": {
+        "tags": [
+          "Enderecos"
+        ],
+        "summary": "Lista os endereços do responsável, com filtros, ordenação e paginação.",
+        "description": "Ordenação (`ordenarPor`): `id` (padrão), `cidade`, `estado`, `bairro`, `logradouro`.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cidade",
+            "in": "query",
+            "description": "Parte do nome da cidade, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "description": "UF com duas letras.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Itens por página (1 a 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
+            "schema": {
+              "pattern": "^(?i)(asc|desc)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnderecoRespostaPaginaDeResultados"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Enderecos"
+        ],
+        "summary": "Adiciona um endereço. O primeiro do responsável vira o principal.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnderecoDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnderecoDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnderecoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnderecoResposta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/enderecos/{id}": {
+      "get": {
+        "tags": [
+          "Enderecos"
+        ],
+        "summary": "Busca um endereço do responsável.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnderecoResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Enderecos"
+        ],
+        "summary": "Atualiza um endereço.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnderecoDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnderecoDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnderecoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Enderecos"
+        ],
+        "summary": "Remove um endereço. Se era o principal, o mais recente dos que sobram assume.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/enderecos/{id}/principal": {
+      "patch": {
+        "tags": [
+          "Enderecos"
+        ],
+        "summary": "Define o endereço como principal e desmarca os demais.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/clinico/{caminho}": {
       "get": {
         "tags": [
@@ -111,7 +815,7 @@
     "/api/lembretes/responsavel/{responsavelId}": {
       "get": {
         "tags": [
-          "LembretesApi"
+          "Lembretes"
         ],
         "summary": "Lista os lembretes do responsável, com filtros, ordenação e paginação.",
         "description": "Filtros: `tipo`, `status`, `petId`, `de` e `ate` (data agendada, `yyyy-MM-dd`).\nOrdenação (`ordenarPor`): `dataAgendada` (padrão, mais recentes primeiro), `tipo`, `status`, `id`.",
@@ -232,7 +936,7 @@
     "/api/lembretes/responsavel/{responsavelId}/tipo/{tipo}": {
       "get": {
         "tags": [
-          "LembretesApi"
+          "Lembretes"
         ],
         "summary": "Atalho para filtrar por tipo. Equivale a `GET /api/lembretes/responsavel/{id}?tipo={tipo}`.",
         "parameters": [
@@ -310,7 +1014,7 @@
     "/api/lembretes/responsavel/{responsavelId}/doses-futuras": {
       "get": {
         "tags": [
-          "LembretesApi"
+          "Lembretes"
         ],
         "summary": "Próximas doses de medicamento (ainda não liberadas), para o app agendar as notificações locais.",
         "parameters": [
@@ -344,7 +1048,7 @@
     "/api/lembretes/responsavel/{responsavelId}/historico": {
       "get": {
         "tags": [
-          "LembretesApi"
+          "Lembretes"
         ],
         "summary": "Histórico das mensagens que o pethub-java enviou pela fila para este responsável e o que o Vitalis fez\ncom cada uma (lido do MongoDB).",
         "description": "Filtros: `resultado` (`Confirmar`, `Descartar`, `Repetir`), `tipo`, `de` e `ate` (UTC).\nOrdenação (`ordenarPor`): `recebidaEm` (padrão, mais recentes primeiro), `resultado`, `tipo`.\nResponde 503 quando o MongoDB não está configurado.",
@@ -459,7 +1163,7 @@
     "/api/lembretes/{id}": {
       "get": {
         "tags": [
-          "LembretesApi"
+          "Lembretes"
         ],
         "summary": "Busca um lembrete do responsável autenticado.",
         "parameters": [
@@ -508,7 +1212,7 @@
       },
       "delete": {
         "tags": [
-          "LembretesApi"
+          "Lembretes"
         ],
         "summary": "Remove o lembrete.",
         "parameters": [
@@ -552,7 +1256,7 @@
     "/api/lembretes/{id}/status": {
       "patch": {
         "tags": [
-          "LembretesApi"
+          "Lembretes"
         ],
         "summary": "Atualiza o status do lembrete (`PENDENTE`, `ENVIADO`, `FALHOU`).",
         "parameters": [
@@ -612,714 +1316,10 @@
         }
       }
     },
-    "/api/responsavel/{responsavelId}/contatos": {
-      "get": {
-        "tags": [
-          "ResponsavelContato"
-        ],
-        "summary": "Lista os contatos do responsável, com filtros, ordenação e paginação.",
-        "description": "Ordenação (`ordenarPor`): `id` (padrão), `tipo`, `telefone`.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "tipo",
-            "in": "query",
-            "description": "`CELULAR` ou `TELEFONE`.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "principal",
-            "in": "query",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "pagina",
-            "in": "query",
-            "description": "Número da página, a partir de 1.",
-            "schema": {
-              "maximum": 100000,
-              "minimum": 1,
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "tamanho",
-            "in": "query",
-            "description": "Itens por página (1 a 100).",
-            "schema": {
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "ordenarPor",
-            "in": "query",
-            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "direcao",
-            "in": "query",
-            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
-            "schema": {
-              "pattern": "^(?i)(asc|desc)$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContatoRespostaPaginaDeResultados"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "ResponsavelContato"
-        ],
-        "summary": "Adiciona um contato. O primeiro do responsável vira o principal.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelContato"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelContato"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelContato"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContatoResposta"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/responsavel/{responsavelId}/contatos/{id}": {
-      "get": {
-        "tags": [
-          "ResponsavelContato"
-        ],
-        "summary": "Busca um contato do responsável.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContatoResposta"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "ResponsavelContato"
-        ],
-        "summary": "Atualiza um contato.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelContato"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelContato"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelContato"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "ResponsavelContato"
-        ],
-        "summary": "Remove um contato. Se era o principal, o mais recente dos que sobram assume.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/responsavel/{responsavelId}/contatos/{id}/principal": {
-      "patch": {
-        "tags": [
-          "ResponsavelContato"
-        ],
-        "summary": "Define o contato como principal e desmarca os demais.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/responsavel/{responsavelId}/enderecos": {
-      "get": {
-        "tags": [
-          "ResponsavelEndereco"
-        ],
-        "summary": "Lista os endereços do responsável, com filtros, ordenação e paginação.",
-        "description": "Ordenação (`ordenarPor`): `id` (padrão), `cidade`, `estado`, `bairro`, `logradouro`.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "cidade",
-            "in": "query",
-            "description": "Parte do nome da cidade, sem diferenciar maiúsculas.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "estado",
-            "in": "query",
-            "description": "UF com duas letras.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "principal",
-            "in": "query",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "pagina",
-            "in": "query",
-            "description": "Número da página, a partir de 1.",
-            "schema": {
-              "maximum": 100000,
-              "minimum": 1,
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "tamanho",
-            "in": "query",
-            "description": "Itens por página (1 a 100).",
-            "schema": {
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "ordenarPor",
-            "in": "query",
-            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "direcao",
-            "in": "query",
-            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
-            "schema": {
-              "pattern": "^(?i)(asc|desc)$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnderecoRespostaPaginaDeResultados"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "ResponsavelEndereco"
-        ],
-        "summary": "Adiciona um endereço. O primeiro do responsável vira o principal.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelEndereco"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelEndereco"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelEndereco"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnderecoResposta"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/responsavel/{responsavelId}/enderecos/{id}": {
-      "get": {
-        "tags": [
-          "ResponsavelEndereco"
-        ],
-        "summary": "Busca um endereço do responsável.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnderecoResposta"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "ResponsavelEndereco"
-        ],
-        "summary": "Atualiza um endereço.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelEndereco"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelEndereco"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponsavelEndereco"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "ResponsavelEndereco"
-        ],
-        "summary": "Remove um endereço. Se era o principal, o mais recente dos que sobram assume.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/responsavel/{responsavelId}/enderecos/{id}/principal": {
-      "patch": {
-        "tags": [
-          "ResponsavelEndereco"
-        ],
-        "summary": "Define o endereço como principal e desmarca os demais.",
-        "parameters": [
-          {
-            "name": "responsavelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/responsavel/{id}": {
       "get": {
         "tags": [
-          "ResponsavelsApi"
+          "Responsaveis"
         ],
         "summary": "Busca o responsável com endereços e contatos. Aceita o JWT do próprio ou o JWT de serviço do Java.",
         "parameters": [
@@ -1358,7 +1358,7 @@
       },
       "put": {
         "tags": [
-          "ResponsavelsApi"
+          "Responsaveis"
         ],
         "summary": "Atualiza nome, CPF e e-mail.",
         "parameters": [
@@ -1409,9 +1409,9 @@
       },
       "delete": {
         "tags": [
-          "ResponsavelsApi"
+          "Responsaveis"
         ],
-        "summary": "Apaga primeiro os pets do responsável no serviço clínico e só depois o cadastro. Se o Java não\nconfirmar, nada é apagado aqui: assim não sobram pets sem dono. Repetir a chamada é seguro.",
+        "summary": "Apaga primeiro os pets do responsável no serviço clínico e só depois o cadastro. Se o Java não\nconfirmar, nada é apagado aqui (503). Repetir a chamada é seguro.",
         "parameters": [
           {
             "name": "id",
@@ -1453,7 +1453,7 @@
     "/api/responsavel/buscar": {
       "get": {
         "tags": [
-          "ResponsavelsApi"
+          "Responsaveis"
         ],
         "summary": "Busca por CPF. Uso do pethub-java, com JWT de serviço no cabeçalho `X-Service-Authorization`.",
         "parameters": [
@@ -1467,7 +1467,34 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsavelResumoResposta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -1475,7 +1502,7 @@
     "/api/responsavel/cadastro": {
       "post": {
         "tags": [
-          "ResponsavelsApi"
+          "Responsaveis"
         ],
         "summary": "Cadastra o responsável e já devolve o token JWT.",
         "requestBody": {
@@ -1499,7 +1526,14 @@
         },
         "responses": {
           "201": {
-            "description": "Created"
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessaoResposta"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -1527,7 +1561,7 @@
     "/api/responsavel/login": {
       "post": {
         "tags": [
-          "ResponsavelsApi"
+          "Responsaveis"
         ],
         "summary": "Autentica por e-mail e senha e devolve o token JWT.",
         "requestBody": {
@@ -1551,7 +1585,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessaoResposta"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized",
@@ -1632,6 +1673,30 @@
         },
         "additionalProperties": false
       },
+      "ContatoDto": {
+        "required": [
+          "telefone",
+          "tipo"
+        ],
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "minLength": 1,
+            "type": "string",
+            "description": "`CELULAR` ou `TELEFONE`."
+          },
+          "telefone": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "principal": {
+            "type": "boolean",
+            "description": "Marca como principal (os demais são desmarcados). O primeiro contato sempre vira principal."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Corpo de criação e atualização de contato. O id e o responsável vêm da rota, nunca do corpo."
+      },
       "ContatoResposta": {
         "type": "object",
         "properties": {
@@ -1700,6 +1765,57 @@
         },
         "additionalProperties": false,
         "description": "Envelope de toda listagem da API: os itens da página, os totais e os links de navegação."
+      },
+      "EnderecoDto": {
+        "required": [
+          "bairro",
+          "cep",
+          "cidade",
+          "estado",
+          "logradouro",
+          "numero"
+        ],
+        "type": "object",
+        "properties": {
+          "logradouro": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "numero": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "complemento": {
+            "type": "string",
+            "nullable": true
+          },
+          "bairro": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "cidade": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "estado": {
+            "maxLength": 2,
+            "minLength": 0,
+            "type": "string",
+            "description": "UF com duas letras."
+          },
+          "cep": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "description": "Só os 8 dígitos."
+          },
+          "principal": {
+            "type": "boolean",
+            "description": "Marca como principal (os demais são desmarcados). O primeiro endereço sempre vira principal."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Corpo de criação e atualização de endereço. O id e o responsável vêm da rota, nunca do corpo."
       },
       "EnderecoResposta": {
         "type": "object",
@@ -2037,90 +2153,6 @@
         "additionalProperties": false,
         "description": "Envelope de toda listagem da API: os itens da página, os totais e os links de navegação."
       },
-      "ResponsavelContato": {
-        "required": [
-          "telefone",
-          "tipo"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "responsavelId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "tipo": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "telefone": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "principal": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false
-      },
-      "ResponsavelEndereco": {
-        "required": [
-          "bairro",
-          "cep",
-          "cidade",
-          "estado",
-          "logradouro",
-          "numero"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "responsavelId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "logradouro": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "numero": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "complemento": {
-            "type": "string",
-            "nullable": true
-          },
-          "bairro": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "cidade": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "estado": {
-            "maxLength": 2,
-            "minLength": 0,
-            "type": "string"
-          },
-          "cep": {
-            "maxLength": 8,
-            "minLength": 0,
-            "type": "string"
-          },
-          "principal": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false
-      },
       "ResponsavelResposta": {
         "type": "object",
         "properties": {
@@ -2170,6 +2202,55 @@
           }
         },
         "additionalProperties": false
+      },
+      "ResponsavelResumoResposta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpf": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "ativo": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Dados mínimos do responsável para o pethub-java (busca por CPF)."
+      },
+      "SessaoResposta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "token": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resposta do cadastro e do login: quem entrou e o JWT para o cabeçalho `Authorization`."
       },
       "StatusLembrete": {
         "enum": [
@@ -2242,23 +2323,24 @@
   ],
   "tags": [
     {
+      "name": "Contatos",
+      "description": "Contatos (telefones) do responsável autenticado. Ao marcar um como principal, os demais são desmarcados."
+    },
+    {
+      "name": "Enderecos",
+      "description": "Endereços do responsável autenticado. Ao marcar um como principal, os demais são desmarcados."
+    },
+    {
       "name": "GatewayClinico",
       "description": "Porta de entrada do responsável para o serviço clínico (pethub-java).\nO Java só reconhece o responsável pela credencial de serviço; por isso o aplicativo fala com\neste gateway, que valida o JWT do Vitalis e repassa o pedido dizendo de quem ele é. As regras\n(o pet é do responsável? a consulta é de um pet dele?) continuam sendo do Java."
     },
     {
-      "name": "LembretesApi",
-      "description": "Lembretes do responsável. Eles nascem de mensagens do pethub-java (veja Mensageria/LembreteConsumidor),\npor isso não existe POST: aqui o responsável só consulta, marca o status e apaga os próprios."
+      "name": "Lembretes",
+      "description": "Lembretes do responsável. Eles nascem de mensagens do pethub-java pela fila, por isso não existe POST:\naqui o responsável só consulta, marca o status e apaga os próprios."
     },
     {
-      "name": "ResponsavelContato",
-      "description": "Contatos (telefones) do responsável autenticado. Ao marcar um como principal, os demais são desmarcados."
-    },
-    {
-      "name": "ResponsavelEndereco",
-      "description": "Endereços do responsável autenticado. Ao marcar um como principal, os demais são desmarcados."
-    },
-    {
-      "name": "ResponsavelsApi"
+      "name": "Responsaveis",
+      "description": "Cadastro, login e dados do responsável."
     }
   ]
 }

@@ -10,7 +10,7 @@
   "portsAttributes": {
     "5192": { "label": "Vitalis API", "onAutoForward": "notify" }
   },
-  "postCreateCommand": "dotnet restore Vitalis.csproj",
+  "postCreateCommand": "dotnet restore Vitalis.slnx",
   "customizations": {
     "vscode": {
       "extensions": ["ms-dotnettools.csharp"]

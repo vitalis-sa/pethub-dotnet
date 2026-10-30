@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text;
-using Vitalis.Integracao;
 
 namespace Vitalis.Tests.Integration.Fixtures;
 

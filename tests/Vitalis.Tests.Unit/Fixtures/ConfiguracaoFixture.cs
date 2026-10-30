@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Vitalis.Seguranca;
 
 namespace Vitalis.Tests.Unit.Fixtures;
 
@@ -17,7 +16,7 @@ public class ConfiguracaoFixture
         httpContext.Request.Method = HttpMethods.Get;
 
         if (serviceToken is not null)
-            httpContext.Request.Headers[AutenticadorDeServico.Cabecalho] = "Bearer " + serviceToken;
+            httpContext.Request.Headers[CabecalhosDeServico.Autorizacao] = "Bearer " + serviceToken;
 
         if (responsavelLogado is not null)
             httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(

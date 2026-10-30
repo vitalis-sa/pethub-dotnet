@@ -21,10 +21,29 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Vitalis.Domain.Entidades" />
+    <Using Include="Vitalis.Domain.Enums" />
+    <Using Include="Vitalis.Domain.Servicos" />
+    <Using Include="Vitalis.Application.Abstracoes" />
+    <Using Include="Vitalis.Application.Consultas" />
+    <Using Include="Vitalis.Application.Dtos" />
+    <Using Include="Vitalis.Application.Historico" />
+    <Using Include="Vitalis.Application.Mensageria" />
+    <Using Include="Vitalis.Application.Resultados" />
+    <Using Include="Vitalis.Application.Servicos" />
+    <Using Include="Vitalis.Api.Controllers" />
+    <Using Include="Vitalis.Api.Erros" />
+    <Using Include="Vitalis.Api.Respostas" />
+    <Using Include="Vitalis.Api.Seguranca" />
+    <Using Include="Vitalis.Infrastructure.Configuracao" />
+    <Using Include="Vitalis.Infrastructure.Seguranca" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Vitalis.csproj" />
+    <ProjectReference Include="..\..\src\Vitalis.Domain\Vitalis.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Vitalis.Application\Vitalis.Application.csproj" />
+    <ProjectReference Include="..\..\src\Vitalis.Infrastructure\Vitalis.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Vitalis.Api\Vitalis.Api.csproj" />
   </ItemGroup>
 
 </Project>
