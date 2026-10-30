@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using Vitalis.Mensageria;
-using Vitalis.Models;
 using Vitalis.Tests.Integration.Fixtures;
 using Xunit;
 
@@ -53,7 +51,7 @@ public class LembreteEndpointsTests : IDisposable
 
         // Act
         var resultado = _factory.ReceberMensagem(json);
-        var lembretes = await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}");
+        var lembretes = (await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}")).GetProperty("itens");
 
         // Assert
         resultado.Should().Be(ResultadoDaMensagem.Confirmar);
@@ -75,7 +73,7 @@ public class LembreteEndpointsTests : IDisposable
         // Act
         _factory.ReceberMensagem(json);
         _factory.ReceberMensagem(json);
-        var lembretes = await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}");
+        var lembretes = (await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}")).GetProperty("itens");
 
         // Assert
         lembretes.GetArrayLength().Should().Be(1);
@@ -120,7 +118,7 @@ public class LembreteEndpointsTests : IDisposable
         await DadosDeIntegracao.EntrarAsync(_client, "a@pethub.com");
 
         // Act
-        var lembretes = await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{primeiro}");
+        var lembretes = (await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{primeiro}")).GetProperty("itens");
 
         // Assert
         lembretes.GetArrayLength().Should().Be(1);
@@ -150,8 +148,8 @@ public class LembreteEndpointsTests : IDisposable
         _factory.CriarLembrete(responsavelId, TipoLembrete.EXAME, referenciaId: 2);
 
         // Act
-        var lembretes = await _client.GetFromJsonAsync<JsonElement>(
-            $"/api/lembretes/responsavel/{responsavelId}/tipo/VACINA");
+        var lembretes = (await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/lembretes/responsavel/{responsavelId}/tipo/VACINA")).GetProperty("itens");
 
         // Assert
         lembretes.GetArrayLength().Should().Be(1);
@@ -179,7 +177,7 @@ public class LembreteEndpointsTests : IDisposable
 
         // Act
         var resposta = await _client.PatchAsJsonAsync($"/api/lembretes/{lembreteId}/status", new { status = "ENVIADO" });
-        var lembretes = await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}");
+        var lembretes = (await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}")).GetProperty("itens");
 
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -223,7 +221,7 @@ public class LembreteEndpointsTests : IDisposable
 
         // Act
         var resposta = await _client.DeleteAsync($"/api/lembretes/{lembreteId}");
-        var lembretes = await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}");
+        var lembretes = (await _client.GetFromJsonAsync<JsonElement>($"/api/lembretes/responsavel/{responsavelId}")).GetProperty("itens");
 
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.NoContent);

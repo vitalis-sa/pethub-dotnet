@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Vitalis.Models;
 
 namespace Vitalis.Tests.Integration.Fixtures;
 

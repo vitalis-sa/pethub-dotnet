@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Vitalis.Seguranca;
 
 namespace Vitalis.Tests.Unit.Fixtures;
 
@@ -12,10 +11,12 @@ public class ConfiguracaoFixture
     public static T ComHttpContext<T>(T controller, string? serviceToken = null, long? responsavelLogado = null)
         where T : ControllerBase
     {
+        // O DefaultHttpContext nasce com Method vazio; o gateway monta um HttpMethod a partir dele.
         var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = HttpMethods.Get;
 
         if (serviceToken is not null)
-            httpContext.Request.Headers[AutenticadorDeServico.Cabecalho] = "Bearer " + serviceToken;
+            httpContext.Request.Headers[CabecalhosDeServico.Autorizacao] = "Bearer " + serviceToken;
 
         if (responsavelLogado is not null)
             httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(

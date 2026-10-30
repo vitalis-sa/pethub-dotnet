@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using FluentAssertions;
-using Vitalis.Models;
 using Xunit;
 
 namespace Vitalis.Tests.Unit.Dominio;
@@ -71,6 +70,41 @@ public class LembreteTests
         // Assert
         conseguiuConverter.Should().BeFalse();
     }
+
+    [Fact]
+    public void Reagendar_LembreteJaEnviado_DeveTrocarDataETextoEVoltarAFicarPendente()
+    {
+        // Arrange
+        var lembrete = NovoLembreteValido();
+        lembrete.Status = StatusLembrete.ENVIADO;
+
+        // Act
+        lembrete.Reagendar(new DateOnly(2026, 12, 1), "Consulta remarcada");
+
+        // Assert
+        lembrete.DataAgendada.Should().Be(new DateOnly(2026, 12, 1));
+        lembrete.Mensagem.Should().Be("Consulta remarcada");
+        lembrete.Status.Should().Be(StatusLembrete.PENDENTE);
+    }
+
+    [Fact]
+    public void Liberar_DosePendente_DeveFicarEnviada()
+    {
+        // Arrange
+        var dose = NovoLembreteValido();
+        dose.DataHora = new DateTime(2026, 9, 15, 10, 0, 0);
+
+        // Act
+        dose.Liberar();
+
+        // Assert
+        dose.Status.Should().Be(StatusLembrete.ENVIADO);
+        dose.EhDose.Should().BeTrue();
+    }
+
+    [Fact]
+    public void EhDose_LembreteSemHorario_DeveSerFalso()
+        => NovoLembreteValido().EhDose.Should().BeFalse();
 
     private static Lembrete NovoLembreteValido() => new()
     {

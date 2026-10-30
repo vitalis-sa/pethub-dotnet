@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using Vitalis.Middlewares;
 using Vitalis.Tests.Integration.Fixtures;
 using Xunit;
 
@@ -55,9 +54,9 @@ public class MonitoramentoEndpointsTests : IDisposable
         // Assert
         var verificacoes = corpo.GetProperty("verificacoes").EnumerateArray().ToList();
 
-        verificacoes.Should().HaveCount(2);
+        verificacoes.Should().HaveCount(3);
         verificacoes.Select(v => v.GetProperty("nome").GetString())
-            .Should().BeEquivalentTo(new[] { "banco_dados", "servico_externo" });
+            .Should().BeEquivalentTo(new[] { "banco_dados", "mongodb", "servico_externo" });
 
         foreach (var verificacao in verificacoes)
         {

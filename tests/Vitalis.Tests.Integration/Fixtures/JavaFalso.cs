@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text;
-using Vitalis.Integracao;
 
 namespace Vitalis.Tests.Integration.Fixtures;
 
@@ -8,12 +7,15 @@ namespace Vitalis.Tests.Integration.Fixtures;
 public class JavaFalso : IPethubJavaClient
 {
     public bool Fora { get; set; }
+    /// <summary>Simula um defeito: lança uma exceção que nenhum controller trata (vai para o tratador global).</summary>
+    public bool Explodir { get; set; }
     public List<(string Metodo, string Caminho, long ResponsavelId)> Encaminhados { get; } = [];
     public List<long> ResponsaveisComPetsApagados { get; } = [];
 
     public void Reiniciar()
     {
         Fora = false;
+        Explodir = false;
         Encaminhados.Clear();
         ResponsaveisComPetsApagados.Clear();
     }
@@ -33,6 +35,8 @@ public class JavaFalso : IPethubJavaClient
 
     public Task ApagarPetsDoResponsavelAsync(long responsavelId, CancellationToken ct)
     {
+        if (Explodir)
+            throw new InvalidOperationException("falha interna simulada com detalhe sigiloso");
         if (Fora)
             throw new ServicoIndisponivelException("Serviço clínico fora do ar (simulado).");
 

@@ -64,7 +64,7 @@ public class EnderecoContatoEndpointsTests : IDisposable
         await CriarEnderecoAsync(responsavelId);
 
         // Act
-        var enderecos = await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{responsavelId}/enderecos");
+        var enderecos = (await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{responsavelId}/enderecos")).GetProperty("itens");
 
         // Assert
         enderecos.GetArrayLength().Should().Be(2);
@@ -74,9 +74,11 @@ public class EnderecoContatoEndpointsTests : IDisposable
     public async Task GetEnderecoById_EnderecoDeOutroResponsavel_DeveRetornar404()
     {
         // Arrange
+        // O endereço é criado enquanto o cliente ainda está autenticado como o dono;
+        // o segundo cadastro deixa o cliente autenticado como o estranho.
         var dono = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "11111111111", email: "dono@pethub.com");
-        var estranho = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "22222222222", email: "outro@pethub.com");
         var enderecoId = await CriarEnderecoAsync(dono);
+        var estranho = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "22222222222", email: "outro@pethub.com");
 
         // Act
         var resposta = await _client.GetAsync($"/api/responsavel/{estranho}/enderecos/{enderecoId}");
@@ -96,7 +98,7 @@ public class EnderecoContatoEndpointsTests : IDisposable
         // Act
         var resposta = await _client.PatchAsync(
             $"/api/responsavel/{responsavelId}/enderecos/{segundo}/principal", content: null);
-        var enderecos = await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{responsavelId}/enderecos");
+        var enderecos = (await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{responsavelId}/enderecos")).GetProperty("itens");
 
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -147,7 +149,7 @@ public class EnderecoContatoEndpointsTests : IDisposable
         // Act
         var resposta = await _client.PatchAsync(
             $"/api/responsavel/{responsavelId}/contatos/{segundo}/principal", content: null);
-        var contatos = await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{responsavelId}/contatos");
+        var contatos = (await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{responsavelId}/contatos")).GetProperty("itens");
 
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.NoContent);

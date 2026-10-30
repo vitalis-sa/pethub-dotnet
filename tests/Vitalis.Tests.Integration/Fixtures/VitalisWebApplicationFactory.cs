@@ -3,11 +3,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
-using Vitalis.Integracao;
-using Vitalis.Mensageria;
-using Vitalis.Models;
-using Vitalis.Repositories;
-using Vitalis.Seguranca;
 
 namespace Vitalis.Tests.Integration.Fixtures;
 
@@ -16,6 +11,9 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
     public const string SegredoJwt = "segredo-jwt-de-integracao-com-mais-de-32-bytes";
 
     public JavaFalso Java { get; } = new();
+
+    /// <summary>Histórico de mensagens no lugar do MongoDB.</summary>
+    public HistoricoEmMemoria Historico { get; } = new();
 
     private readonly string _nomeDoBanco = $"vitalis-integracao-{Guid.NewGuid():N}";
 
@@ -32,6 +30,7 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
         {
             RemoverRegistroDoOracle(services);
             services.AddSingleton<IPethubJavaClient>(Java);
+            services.AddSingleton<IHistoricoDeMensagens>(Historico);
 
             services.AddDbContext<AppDbContext>(options =>
                 options.UseInMemoryDatabase(_nomeDoBanco));
@@ -60,6 +59,7 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
     public void LimparBanco()
     {
         Java.Reiniciar();
+        Historico.Limpar();
 
         using var scope = Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -94,7 +94,9 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
             DataAgendada = new DateOnly(2026, 9, 15), Mensagem = "Vacina antirrábica agendada",
             ReferenciaId = referenciaId, ReferenciaTipo = "VacinaTratamento"
         };
-        scope.ServiceProvider.GetRequiredService<ILembreteRepository>().Add(lembrete);
+        var repositorio = scope.ServiceProvider.GetRequiredService<ILembreteRepository>();
+        repositorio.Adicionar(lembrete);
+        repositorio.SalvarAlteracoes();
         return lembrete.Id;
     }
 
@@ -110,7 +112,7 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
     public HttpClient CreateClientComServiceToken(string? token = null)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add(AutenticadorDeServico.Cabecalho, "Bearer " + (token ?? ChavesDeTeste.TokenDoJava()));
+        client.DefaultRequestHeaders.Add(CabecalhosDeServico.Autorizacao, "Bearer " + (token ?? ChavesDeTeste.TokenDoJava()));
         return client;
     }
 }
