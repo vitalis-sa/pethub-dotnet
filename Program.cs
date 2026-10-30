@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -5,10 +6,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using MongoDB.Driver;
 using Oracle.EntityFrameworkCore.Infrastructure;
 using Vitalis.Configuracao;
 using Vitalis.Dados;
+using Vitalis.Erros;
 using Vitalis.Health;
+using Vitalis.Historico;
 using Vitalis.Integracao;
 using Vitalis.Doses;
 using Vitalis.Mensageria;
@@ -90,9 +94,41 @@ builder.Services.AddScoped<IProcessadorDeLembrete, ProcessadorDeLembrete>();
 builder.Services.AddHostedService<LembreteConsumidor>();
 builder.Services.AddHostedService<EnviadorDeLembretes>();
 
+// MongoDB: histórico das mensagens da fila. Sem Mongo__ConnectionString o histórico fica desligado e o resto da
+// API funciona normalmente (o /health mostra "Degraded" para o mongodb).
+builder.Services.Configure<MongoOpcoes>(builder.Configuration.GetSection("Mongo"));
+var mongo = builder.Configuration.GetSection("Mongo").Get<MongoOpcoes>() ?? new MongoOpcoes();
+if (mongo.Configurado)
+{
+    builder.Services.AddSingleton<IMongoClient>(_ =>
+    {
+        var configuracao = MongoClientSettings.FromConnectionString(mongo.ConnectionString);
+        configuracao.ServerSelectionTimeout = TimeSpan.FromSeconds(mongo.TimeoutSegundos);
+        configuracao.ConnectTimeout = TimeSpan.FromSeconds(mongo.TimeoutSegundos);
+        return new MongoClient(configuracao);
+    });
+    builder.Services.AddSingleton<IHistoricoDeMensagens, HistoricoDeMensagensMongo>();
+    builder.Services.AddHostedService<PreparadorDoHistorico>();
+}
+else
+{
+    builder.Services.AddSingleton<IHistoricoDeMensagens, HistoricoDesligado>();
+}
+
 builder.Services.AddControllers()
-    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddProblemDetails();
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // Chaves de dicionário em camelCase, como as propriedades: "errors": { "tamanho": [...] }.
+        o.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+    });
+
+// Tratamento de erros global e num formato só (application/problem+json, RFC 9457): exceções não tratadas
+// (TratadorGlobalDeExcecoes), validação automática do [ApiController], 401/403/404 sem corpo e os erros
+// devolvidos pelos controllers (Erros/Problemas.cs) passam todos pelo mesmo Completar.
+builder.Services.AddProblemDetails(opcoes =>
+    opcoes.CustomizeProblemDetails = contexto => Problemas.Completar(contexto.HttpContext, contexto.ProblemDetails));
+builder.Services.AddExceptionHandler<TratadorGlobalDeExcecoes>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -103,6 +139,11 @@ builder.Services.AddSwaggerGen(c =>
         Version     = "v1",
         Description = "API do domínio do Responsável — PetHub (cadastro, endereços, contatos, lembretes e gateway para o serviço clínico)"
     });
+
+    // Os comentários /// dos controllers e DTOs aparecem no Swagger.
+    var xml = Path.Combine(AppContext.BaseDirectory, $"{typeof(Program).Assembly.GetName().Name}.xml");
+    if (File.Exists(xml))
+        c.IncludeXmlComments(xml, includeControllerXmlComments: true);
 
     // Botão "Authorize" do Swagger: informe apenas o token JWT devolvido por /api/responsavel/login.
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -124,6 +165,7 @@ builder.Services.AddHttpClient();
 
 builder.Services.AddHealthChecks()
     .AddCheck<BancoDadosHealthCheck>("banco_dados")
+    .AddCheck<MongoHealthCheck>("mongodb")
     .AddCheck<ServicoExternoHealthCheck>("servico_externo");
 
 builder.Services.AddOpenTelemetry()
@@ -156,11 +198,15 @@ var app = builder.Build();
 // Segredo de serviço inválido derruba a subida, em vez de falhar só na primeira chamada.
 _ = app.Services.GetRequiredService<IAutenticadorDeServico>();
 
-if (app.Configuration.GetValue("Banco:CriarTabelas", true))
-    InicializadorDoBanco.CriarTabelasSeNecessario(app.Services);
+// Migrations do EF Core na subida. "Banco:CriarTabelas" é o nome antigo da chave e continua valendo.
+if (app.Configuration.GetValue("Banco:AplicarMigracoes", app.Configuration.GetValue("Banco:CriarTabelas", true)))
+    InicializadorDoBanco.AplicarMigracoes(app.Services);
 
 app.UseSerilogRequestLogging();
+// O Correlation ID vem antes do tratador de erros para que o log da exceção e o corpo do erro levem o mesmo id.
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -168,11 +214,6 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Vitalis API v1");
     c.RoutePrefix = "swagger";
 });
-
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler();
-}
 
 // Sem UseHttpsRedirection: no GCP o TLS termina no balanceador e o contêiner recebe HTTP.
 

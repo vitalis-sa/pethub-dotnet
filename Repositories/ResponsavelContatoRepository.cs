@@ -1,3 +1,5 @@
+using Vitalis.Consultas;
+
 namespace Vitalis.Repositories;
 
 public class ResponsavelContatoRepository : IResponsavelContatoRepository
@@ -13,6 +15,34 @@ public class ResponsavelContatoRepository : IResponsavelContatoRepository
         => _context.Contatos
             .Where(c => c.ResponsavelId == responsavelId)
             .ToList();
+
+    public (IReadOnlyList<ResponsavelContato> Itens, int Total) Consultar(
+        long responsavelId, FiltroDeContatos filtro, ConsultaPaginada consulta)
+    {
+        var consultaBase = _context.Contatos.Where(c => c.ResponsavelId == responsavelId);
+
+        if (!string.IsNullOrWhiteSpace(filtro.Tipo))
+        {
+            var tipo = filtro.Tipo.Trim().ToUpper();
+            consultaBase = consultaBase.Where(c => c.Tipo == tipo);
+        }
+        if (filtro.Principal is not null)
+        {
+            var principal = filtro.Principal.Value;
+            consultaBase = consultaBase.Where(c => c.Principal == principal);
+        }
+
+        var total = consultaBase.Count();
+        var desc = consulta.Decrescente(padrao: false);
+        var ordenada = consulta.CampoDeOrdenacao("id").ToLowerInvariant() switch
+        {
+            "tipo" => Ordenacao.Por(consultaBase, c => c.Tipo, desc).ThenBy(c => c.Id),
+            "telefone" => Ordenacao.Por(consultaBase, c => c.Telefone, desc).ThenBy(c => c.Id),
+            _ => Ordenacao.Por(consultaBase, c => c.Id, desc)
+        };
+
+        return (ordenada.Skip(consulta.Ignorar).Take(consulta.Tamanho).ToList(), total);
+    }
 
     public ResponsavelContato? GetById(long id)
         => _context.Contatos.FirstOrDefault(c => c.Id == id);

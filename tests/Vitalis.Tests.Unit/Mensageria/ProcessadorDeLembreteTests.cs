@@ -2,6 +2,7 @@ using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Vitalis.Historico;
 using Vitalis.Mensageria;
 using Vitalis.Models;
 using Vitalis.Repositories;
@@ -13,13 +14,15 @@ public class ProcessadorDeLembreteTests
 {
     private readonly Mock<IResponsavelRepository> _responsaveis = new();
     private readonly Mock<ILembreteRepository> _lembretes = new();
+    private readonly Mock<IHistoricoDeMensagens> _historico = new();
     private readonly ProcessadorDeLembrete _processador;
 
     public ProcessadorDeLembreteTests()
     {
         _responsaveis.Setup(r => r.Existe(7)).Returns(true);
+        _historico.SetupGet(h => h.Habilitado).Returns(true);
         _processador = new ProcessadorDeLembrete(
-            _responsaveis.Object, _lembretes.Object, NullLogger<ProcessadorDeLembrete>.Instance);
+            _responsaveis.Object, _lembretes.Object, _historico.Object, NullLogger<ProcessadorDeLembrete>.Instance);
     }
 
     private static byte[] Corpo(string json) => Encoding.UTF8.GetBytes(json);
@@ -169,5 +172,72 @@ public class ProcessadorDeLembreteTests
         resultado.Should().Be(ResultadoDaMensagem.Confirmar);
         _lembretes.Verify(l => l.RemoverDosesPendentes(7, "VacinaTratamento", 30), Times.Once);
         _lembretes.Verify(l => l.Add(It.IsAny<Lembrete>()), Times.Never);
+    }
+
+    [Fact]
+    public void Processar_MensagemValida_DeveRegistrarNoHistoricoOResultadoEOMotivo()
+    {
+        // Act
+        _processador.Processar(Corpo(MensagemValida));
+
+        // Assert
+        _historico.Verify(h => h.Registrar(It.Is<RegistroDeMensagem>(r =>
+            r.ResponsavelId == 7 && r.PetId == 5 && r.Tipo == "CONSULTA" && r.ReferenciaId == 100
+            && r.Resultado == "Confirmar" && r.Motivo == "lembrete criado" && r.Corpo.Contains("Rex"))), Times.Once);
+    }
+
+    [Fact]
+    public void Processar_MensagemIlegivel_DeveRegistrarODescarteMesmoSemResponsavel()
+    {
+        // Act
+        var resultado = _processador.Processar(Corpo("isto não é json"));
+
+        // Assert
+        resultado.Should().Be(ResultadoDaMensagem.Descartar);
+        _historico.Verify(h => h.Registrar(It.Is<RegistroDeMensagem>(r =>
+            r.ResponsavelId == null && r.Resultado == "Descartar" && r.Motivo == "mensagem inválida"
+            && r.Corpo == "isto não é json")), Times.Once);
+    }
+
+    [Fact]
+    public void Processar_BancoForaDoAr_DeveRegistrarARepeticao()
+    {
+        // Arrange
+        _lembretes.Setup(l => l.Add(It.IsAny<Lembrete>())).Throws(new InvalidOperationException("ORA-12541"));
+
+        // Act
+        var resultado = _processador.Processar(Corpo(MensagemValida));
+
+        // Assert
+        resultado.Should().Be(ResultadoDaMensagem.Repetir);
+        _historico.Verify(h => h.Registrar(It.Is<RegistroDeMensagem>(r =>
+            r.Resultado == "Repetir" && r.Motivo.Contains("InvalidOperationException"))), Times.Once);
+    }
+
+    [Fact]
+    public void Processar_HistoricoForaDoAr_DeveConfirmarAMensagemMesmoAssim()
+    {
+        // Arrange
+        _historico.Setup(h => h.Registrar(It.IsAny<RegistroDeMensagem>())).Throws(new TimeoutException("mongo"));
+
+        // Act
+        var resultado = _processador.Processar(Corpo(MensagemValida));
+
+        // Assert
+        resultado.Should().Be(ResultadoDaMensagem.Confirmar);
+        _lembretes.Verify(l => l.Add(It.IsAny<Lembrete>()), Times.Once);
+    }
+
+    [Fact]
+    public void Processar_HistoricoDesligado_NaoDeveTentarRegistrar()
+    {
+        // Arrange
+        _historico.SetupGet(h => h.Habilitado).Returns(false);
+
+        // Act
+        _processador.Processar(Corpo(MensagemValida));
+
+        // Assert
+        _historico.Verify(h => h.Registrar(It.IsAny<RegistroDeMensagem>()), Times.Never);
     }
 }

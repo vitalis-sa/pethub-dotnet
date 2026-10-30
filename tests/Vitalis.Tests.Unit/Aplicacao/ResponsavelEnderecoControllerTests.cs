@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Moq;
+using Vitalis.Consultas;
+using Vitalis.Dto;
 using Vitalis.Repositories;
 using Vitalis.Tests.Unit.Fixtures;
 using Xunit;
@@ -24,19 +26,36 @@ public class ResponsavelEnderecoControllerTests
                 new Mock<ILogger<ResponsavelEnderecoController>>().Object));
 
     [Fact]
-    public void GetAll_ResponsavelComEnderecos_DeveRetornarOkComALista()
+    public void GetAll_ResponsavelComEnderecos_DeveRetornarPaginaComOsEnderecosELinks()
     {
         // Arrange
-        _repositorioMock.Setup(r => r.GetByResponsavelId(1))
-            .Returns([NovoEndereco(id: 1, responsavelId: 1, principal: true)]);
+        _repositorioMock.Setup(r => r.Consultar(1, It.IsAny<FiltroDeEnderecos>(), It.IsAny<ConsultaPaginada>()))
+            .Returns(([NovoEndereco(id: 1, responsavelId: 1, principal: true)], 1));
         var controller = CriarController();
 
         // Act
-        var resultado = controller.GetAll(1);
+        var resultado = controller.GetAll(1, new FiltroDeEnderecos(), new ConsultaPaginada());
 
         // Assert
-        var ok = resultado.Should().BeOfType<OkObjectResult>().Subject;
-        ok.Value.Should().BeAssignableTo<IEnumerable<ResponsavelEndereco>>().Which.Should().HaveCount(1);
+        var pagina = resultado.Should().BeOfType<OkObjectResult>().Which.Value
+            .Should().BeOfType<PaginaDeResultados<EnderecoResposta>>().Subject;
+        pagina.Itens.Should().HaveCount(1);
+        pagina.Itens[0].Links.Should().Contain(l => l.Rel == "definir-principal"
+                                                    && l.Href == "/api/responsavel/1/enderecos/1/principal");
+    }
+
+    [Fact]
+    public void GetAll_OrdenacaoPorCampoDesconhecido_DeveRetornar400SemConsultar()
+    {
+        // Arrange
+        var controller = CriarController();
+
+        // Act
+        var resultado = controller.GetAll(1, new FiltroDeEnderecos(), new ConsultaPaginada { OrdenarPor = "cpf" });
+
+        // Assert
+        resultado.Should().BeOfType<BadRequestObjectResult>();
+        _repositorioMock.Verify(r => r.Consultar(It.IsAny<long>(), It.IsAny<FiltroDeEnderecos>(), It.IsAny<ConsultaPaginada>()), Times.Never);
     }
 
     [Fact]
@@ -51,8 +70,11 @@ public class ResponsavelEnderecoControllerTests
         var resultado = controller.GetById(1, 1);
 
         // Assert
-        var ok = resultado.Should().BeOfType<OkObjectResult>().Subject;
-        ok.Value.Should().BeSameAs(endereco);
+        var resposta = resultado.Should().BeOfType<OkObjectResult>().Which.Value
+            .Should().BeOfType<EnderecoResposta>().Subject;
+        resposta.Id.Should().Be(endereco.Id);
+        resposta.Cidade.Should().Be(endereco.Cidade);
+        resposta.Links.Should().Contain(l => l.Rel == "self" && l.Href == "/api/responsavel/1/enderecos/1");
     }
 
     [Fact]

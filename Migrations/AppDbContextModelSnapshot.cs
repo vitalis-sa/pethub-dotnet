@@ -16,7 +16,7 @@ namespace Vitalis.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.7")
+                .HasAnnotation("ProductVersion", "10.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             OracleModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -40,6 +40,10 @@ namespace Vitalis.Migrations
                         .IsRequired()
                         .HasColumnType("NVARCHAR2(10)")
                         .HasColumnName("DATA_AGENDADA");
+
+                    b.Property<DateTime?>("DataHora")
+                        .HasColumnType("TIMESTAMP(7)")
+                        .HasColumnName("DATA_HORA");
 
                     b.Property<string>("Mensagem")
                         .IsRequired()

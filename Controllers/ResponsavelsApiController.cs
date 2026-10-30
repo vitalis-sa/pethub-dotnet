@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Vitalis.Dto;
+using Vitalis.Erros;
 using Vitalis.Integracao;
 using Vitalis.Observabilidade;
 using Vitalis.Repositories;
@@ -30,8 +32,11 @@ public class ResponsavelsApiController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>Busca o responsável com endereços e contatos. Aceita o JWT do próprio ou o JWT de serviço do Java.</summary>
     [HttpGet("{id:long}")]
     [ApenasProprietario("id", AceitaServico = true)]
+    [ProducesResponseType<ResponsavelResposta>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public IActionResult GetById(long id)
     {
         // Grava log estruturado contendo o parâmetro da busca
@@ -42,17 +47,13 @@ public class ResponsavelsApiController : ControllerBase
         {
             // Grava log de aviso indicando recurso não encontrado
             _logger.LogWarning("Responsável com ID {ResponsavelId} não foi encontrado.", id);
-            return NotFound(new { erro = "Responsavel não encontrado" });
+            return this.NaoEncontrado("Responsavel não encontrado");
         }
 
-        return Ok(new
-        {
-            responsavel.Id, responsavel.Nome, responsavel.Email, responsavel.Cpf,
-            responsavel.Ativo, responsavel.CreatedAt,
-            responsavel.Enderecos, responsavel.Contatos
-        });
+        return Ok(ResponsavelResposta.De(responsavel));
     }
 
+    /// <summary>Busca por CPF. Uso do pethub-java, com JWT de serviço no cabeçalho <c>X-Service-Authorization</c>.</summary>
     [HttpGet("buscar")]
     public IActionResult BuscarPorCpf([FromQuery] string cpf)
     {
@@ -60,11 +61,11 @@ public class ResponsavelsApiController : ControllerBase
         {
             // Grava log de aviso indicando tentativa de acesso não autorizada
             _logger.LogWarning("Tentativa de busca por CPF sem token de serviço válido.");
-            return Unauthorized(new { erro = "Token de serviço inválido" });
+            return this.NaoAutorizado("Token de serviço inválido");
         }
 
         if (string.IsNullOrWhiteSpace(cpf))
-            return BadRequest(new { erro = "CPF é obrigatório" });
+            return this.RequisicaoInvalida("CPF é obrigatório");
 
         _logger.LogInformation("Buscando responsável por CPF para integração com o backend Java.");
 
@@ -72,13 +73,17 @@ public class ResponsavelsApiController : ControllerBase
         if (responsavel == null)
         {
             _logger.LogWarning("Nenhum responsável encontrado para o CPF informado.");
-            return NotFound(new { erro = "Responsavel não encontrado" });
+            return this.NaoEncontrado("Responsavel não encontrado");
         }
 
         return Ok(new { responsavel.Id, responsavel.Nome, responsavel.Cpf, responsavel.Email, responsavel.Ativo });
     }
 
+    /// <summary>Cadastra o responsável e já devolve o token JWT.</summary>
     [HttpPost("cadastro")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public IActionResult Cadastrar([FromBody] CadastrarResponsavelDto dto)
     {
         // Inicia um Span customizado via ActivitySource para rastreamento refinado
@@ -94,7 +99,7 @@ public class ResponsavelsApiController : ControllerBase
                 new KeyValuePair<string, object?>("status", "erro_validacao"));
 
             _logger.LogWarning("Cadastro de responsável rejeitado por dados inválidos.");
-            return BadRequest(ModelState);
+            return this.DadosInvalidos();
         }
 
         try
@@ -106,7 +111,7 @@ public class ResponsavelsApiController : ControllerBase
                     new KeyValuePair<string, object?>("status", "erro_cpf_duplicado"));
 
                 _logger.LogWarning("Tentativa de cadastrar responsável com CPF já existente.");
-                return Conflict(new { erro = "CPF já cadastrado" });
+                return this.Conflito("CPF já cadastrado");
             }
 
             _logger.LogInformation("Tentando cadastrar responsável: {NomeResponsavel}", dto.Nome);
@@ -140,16 +145,18 @@ public class ResponsavelsApiController : ControllerBase
             _logger.LogError(ex,
                 "Falha inesperada ao cadastrar o responsável {NomeResponsavel}.", dto.Nome);
 
-            return StatusCode(StatusCodes.Status500InternalServerError,
-                new { erro = "Erro interno ao cadastrar responsável" });
+            return this.ErroInterno("Erro interno ao cadastrar responsável");
         }
     }
 
+    /// <summary>Autentica por e-mail e senha e devolve o token JWT.</summary>
     [HttpPost("login")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
     public IActionResult Login([FromBody] LoginDto dto)
     {
         if (!ModelState.IsValid)
-            return BadRequest(ModelState);
+            return this.DadosInvalidos();
 
         _logger.LogInformation("Tentativa de login recebida.");
 
@@ -157,31 +164,34 @@ public class ResponsavelsApiController : ControllerBase
         if (responsavel == null || !BCrypt.Net.BCrypt.Verify(dto.Senha, responsavel.Senha))
         {
             _logger.LogWarning("Login recusado por credenciais inválidas.");
-            return Unauthorized(new { erro = "Credenciais inválidas" });
+            return this.NaoAutorizado("Credenciais inválidas");
         }
 
         if (!responsavel.Ativo)
         {
             _logger.LogWarning("Login recusado: conta {ResponsavelId} está desativada.", responsavel.Id);
-            return Unauthorized(new { erro = "Conta desativada" });
+            return this.NaoAutorizado("Conta desativada");
         }
 
         _logger.LogInformation("Responsável {ResponsavelId} autenticado com sucesso.", responsavel.Id);
         return Ok(new { responsavel.Id, responsavel.Nome, responsavel.Email, Token = _tokens.Emitir(responsavel) });
     }
 
+    /// <summary>Atualiza nome, CPF e e-mail.</summary>
     [HttpPut("{id:long}")]
     [ApenasProprietario("id")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public IActionResult Update(long id, [FromBody] AtualizarResponsavelDto dto)
     {
         if (!ModelState.IsValid)
-            return BadRequest(ModelState);
+            return this.DadosInvalidos();
 
         var existente = _repo.GetById(id);
         if (existente == null)
         {
             _logger.LogWarning("Atualização falhou: responsável {ResponsavelId} não encontrado.", id);
-            return NotFound(new { erro = "Responsavel não encontrado" });
+            return this.NaoEncontrado("Responsavel não encontrado");
         }
 
         existente.Nome  = dto.Nome;
@@ -200,13 +210,16 @@ public class ResponsavelsApiController : ControllerBase
     /// </summary>
     [HttpDelete("{id:long}")]
     [ApenasProprietario("id")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
     public async Task<IActionResult> Delete(long id, CancellationToken ct = default)
     {
         var responsavel = _repo.GetById(id);
         if (responsavel == null)
         {
             _logger.LogWarning("Remoção falhou: responsável {ResponsavelId} não encontrado.", id);
-            return NotFound(new { erro = "Responsavel não encontrado" });
+            return this.NaoEncontrado("Responsavel não encontrado");
         }
 
         try
@@ -216,8 +229,7 @@ public class ResponsavelsApiController : ControllerBase
         catch (ServicoIndisponivelException ex)
         {
             _logger.LogError(ex, "Remoção do responsável {ResponsavelId} interrompida: o serviço clínico não confirmou a remoção dos pets.", id);
-            return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                new { erro = "Não foi possível apagar os pets do responsável agora. Tente novamente." });
+            return this.Indisponivel("Não foi possível apagar os pets do responsável agora. Tente novamente.");
         }
 
         _repo.Delete(id);

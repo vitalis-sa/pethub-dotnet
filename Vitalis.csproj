@@ -9,11 +9,15 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <!-- Segredos de desenvolvimento ficam fora do repositório (dotnet user-secrets). -->
         <UserSecretsId>vitalis-pethub-dev</UserSecretsId>
+        <!-- Gera o XML dos comentários /// para o Swagger. CS1591 (membro público sem comentário) fica desligado. -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
       <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+      <PackageReference Include="MongoDB.Driver" Version="3.13.0" />
       <PackageReference Include="RabbitMQ.Client" Version="7.1.2" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
         <PrivateAssets>all</PrivateAssets>

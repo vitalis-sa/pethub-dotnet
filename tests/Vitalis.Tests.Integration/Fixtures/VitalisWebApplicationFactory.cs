@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
+using Vitalis.Historico;
 using Vitalis.Integracao;
 using Vitalis.Mensageria;
 using Vitalis.Models;
@@ -16,6 +17,9 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
     public const string SegredoJwt = "segredo-jwt-de-integracao-com-mais-de-32-bytes";
 
     public JavaFalso Java { get; } = new();
+
+    /// <summary>Histórico de mensagens no lugar do MongoDB.</summary>
+    public HistoricoEmMemoria Historico { get; } = new();
 
     private readonly string _nomeDoBanco = $"vitalis-integracao-{Guid.NewGuid():N}";
 
@@ -32,6 +36,7 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
         {
             RemoverRegistroDoOracle(services);
             services.AddSingleton<IPethubJavaClient>(Java);
+            services.AddSingleton<IHistoricoDeMensagens>(Historico);
 
             services.AddDbContext<AppDbContext>(options =>
                 options.UseInMemoryDatabase(_nomeDoBanco));
@@ -60,6 +65,7 @@ public class VitalisWebApplicationFactory : WebApplicationFactory<Program>
     public void LimparBanco()
     {
         Java.Reiniciar();
+        Historico.Limpar();
 
         using var scope = Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();

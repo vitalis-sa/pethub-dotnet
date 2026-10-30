@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Vitalis.Erros;
 using Vitalis.Integracao;
 using Vitalis.Seguranca;
 
@@ -28,11 +29,11 @@ public class GatewayClinicoController(IPethubJavaClient java, ILogger<GatewayCli
     public async Task<IActionResult> Encaminhar(string caminho, CancellationToken ct)
     {
         if (!CaminhoPermitido(caminho))
-            return NotFound(new { erro = "Recurso não encontrado" });
+            return this.NaoEncontrado("Recurso não encontrado");
 
         var responsavelId = User.ResponsavelId();
         if (responsavelId is null)
-            return Unauthorized(new { erro = "Autenticação necessária" });
+            return this.NaoAutorizado("Autenticação necessária");
 
         try
         {
@@ -50,7 +51,7 @@ public class GatewayClinicoController(IPethubJavaClient java, ILogger<GatewayCli
         catch (ServicoIndisponivelException ex)
         {
             logger.LogWarning(ex, "Gateway clínico: serviço Java indisponível para {Metodo} /api/{Caminho}.", Request.Method, caminho);
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { erro = ex.Message });
+            return this.Indisponivel(ex.Message);
         }
     }
 

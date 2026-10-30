@@ -43,3 +43,18 @@ public class PethubJavaOpcoes
     public string UrlBase { get; set; } = "http://localhost:8080";
     public int TimeoutSegundos { get; set; } = 15;
 }
+
+/// <summary>
+/// MongoDB (seção "Mongo"): histórico das mensagens recebidas da fila de lembretes.
+/// Sem ConnectionString o histórico fica desligado e a API funciona normalmente.
+/// </summary>
+public class MongoOpcoes
+{
+    public string ConnectionString { get; set; } = "";
+    public string Banco { get; set; } = "vitalis";
+    public string ColecaoHistorico { get; set; } = "historico_mensagens";
+    /// <summary>Quanto esperar por um servidor antes de desistir (a gravação do histórico não pode travar a fila).</summary>
+    public int TimeoutSegundos { get; set; } = 5;
+
+    public bool Configurado => !string.IsNullOrWhiteSpace(ConnectionString);
+}

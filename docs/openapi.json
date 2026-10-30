@@ -1,0 +1,2264 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Vitalis API",
+    "description": "API do domínio do Responsável — PetHub (cadastro, endereços, contatos, lembretes e gateway para o serviço clínico)",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/clinico/{caminho}": {
+      "get": {
+        "tags": [
+          "GatewayClinico"
+        ],
+        "parameters": [
+          {
+            "name": "caminho",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "GatewayClinico"
+        ],
+        "parameters": [
+          {
+            "name": "caminho",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "GatewayClinico"
+        ],
+        "parameters": [
+          {
+            "name": "caminho",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "GatewayClinico"
+        ],
+        "parameters": [
+          {
+            "name": "caminho",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "GatewayClinico"
+        ],
+        "parameters": [
+          {
+            "name": "caminho",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/lembretes/responsavel/{responsavelId}": {
+      "get": {
+        "tags": [
+          "LembretesApi"
+        ],
+        "summary": "Lista os lembretes do responsável, com filtros, ordenação e paginação.",
+        "description": "Filtros: `tipo`, `status`, `petId`, `de` e `ate` (data agendada, `yyyy-MM-dd`).\nOrdenação (`ordenarPor`): `dataAgendada` (padrão, mais recentes primeiro), `tipo`, `status`, `id`.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TipoLembrete"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/StatusLembrete"
+            }
+          },
+          {
+            "name": "petId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "de",
+            "in": "query",
+            "description": "Data agendada a partir de (inclusive), `yyyy-MM-dd`.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "ate",
+            "in": "query",
+            "description": "Data agendada até (inclusive), `yyyy-MM-dd`.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Itens por página (1 a 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
+            "schema": {
+              "pattern": "^(?i)(asc|desc)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LembreteRespostaPaginaDeResultados"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lembretes/responsavel/{responsavelId}/tipo/{tipo}": {
+      "get": {
+        "tags": [
+          "LembretesApi"
+        ],
+        "summary": "Atalho para filtrar por tipo. Equivale a `GET /api/lembretes/responsavel/{id}?tipo={tipo}`.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TipoLembrete"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Itens por página (1 a 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
+            "schema": {
+              "pattern": "^(?i)(asc|desc)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LembreteRespostaPaginaDeResultados"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lembretes/responsavel/{responsavelId}/doses-futuras": {
+      "get": {
+        "tags": [
+          "LembretesApi"
+        ],
+        "summary": "Próximas doses de medicamento (ainda não liberadas), para o app agendar as notificações locais.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LembreteResposta"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lembretes/responsavel/{responsavelId}/historico": {
+      "get": {
+        "tags": [
+          "LembretesApi"
+        ],
+        "summary": "Histórico das mensagens que o pethub-java enviou pela fila para este responsável e o que o Vitalis fez\ncom cada uma (lido do MongoDB).",
+        "description": "Filtros: `resultado` (`Confirmar`, `Descartar`, `Repetir`), `tipo`, `de` e `ate` (UTC).\nOrdenação (`ordenarPor`): `recebidaEm` (padrão, mais recentes primeiro), `resultado`, `tipo`.\nResponde 503 quando o MongoDB não está configurado.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "resultado",
+            "in": "query",
+            "description": "`Confirmar`, `Descartar` ou `Repetir`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "description": "Tipo do lembrete da mensagem (`VACINA`, `CONSULTA`...).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "de",
+            "in": "query",
+            "description": "Recebidas a partir de (UTC).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "ate",
+            "in": "query",
+            "description": "Recebidas até (UTC).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Itens por página (1 a 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
+            "schema": {
+              "pattern": "^(?i)(asc|desc)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistroDeMensagemRespostaPaginaDeResultados"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lembretes/{id}": {
+      "get": {
+        "tags": [
+          "LembretesApi"
+        ],
+        "summary": "Busca um lembrete do responsável autenticado.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LembreteResposta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "LembretesApi"
+        ],
+        "summary": "Remove o lembrete.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lembretes/{id}/status": {
+      "patch": {
+        "tags": [
+          "LembretesApi"
+        ],
+        "summary": "Atualiza o status do lembrete (`PENDENTE`, `ENVIADO`, `FALHOU`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizarStatusDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizarStatusDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizarStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/contatos": {
+      "get": {
+        "tags": [
+          "ResponsavelContato"
+        ],
+        "summary": "Lista os contatos do responsável, com filtros, ordenação e paginação.",
+        "description": "Ordenação (`ordenarPor`): `id` (padrão), `tipo`, `telefone`.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "description": "`CELULAR` ou `TELEFONE`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Itens por página (1 a 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
+            "schema": {
+              "pattern": "^(?i)(asc|desc)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContatoRespostaPaginaDeResultados"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ResponsavelContato"
+        ],
+        "summary": "Adiciona um contato. O primeiro do responsável vira o principal.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelContato"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelContato"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelContato"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContatoResposta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/contatos/{id}": {
+      "get": {
+        "tags": [
+          "ResponsavelContato"
+        ],
+        "summary": "Busca um contato do responsável.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContatoResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ResponsavelContato"
+        ],
+        "summary": "Atualiza um contato.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelContato"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelContato"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelContato"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ResponsavelContato"
+        ],
+        "summary": "Remove um contato. Se era o principal, o mais recente dos que sobram assume.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/contatos/{id}/principal": {
+      "patch": {
+        "tags": [
+          "ResponsavelContato"
+        ],
+        "summary": "Define o contato como principal e desmarca os demais.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/enderecos": {
+      "get": {
+        "tags": [
+          "ResponsavelEndereco"
+        ],
+        "summary": "Lista os endereços do responsável, com filtros, ordenação e paginação.",
+        "description": "Ordenação (`ordenarPor`): `id` (padrão), `cidade`, `estado`, `bairro`, `logradouro`.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cidade",
+            "in": "query",
+            "description": "Parte do nome da cidade, sem diferenciar maiúsculas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "description": "UF com duas letras.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "principal",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "description": "Número da página, a partir de 1.",
+            "schema": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tamanho",
+            "in": "query",
+            "description": "Itens por página (1 a 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "ordenarPor",
+            "in": "query",
+            "description": "Campo de ordenação. Cada recurso aceita uma lista própria de campos.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direcao",
+            "in": "query",
+            "description": "`asc` ou `desc`. Sem valor, vale a direção padrão do recurso.",
+            "schema": {
+              "pattern": "^(?i)(asc|desc)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnderecoRespostaPaginaDeResultados"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ResponsavelEndereco"
+        ],
+        "summary": "Adiciona um endereço. O primeiro do responsável vira o principal.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelEndereco"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelEndereco"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelEndereco"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnderecoResposta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/enderecos/{id}": {
+      "get": {
+        "tags": [
+          "ResponsavelEndereco"
+        ],
+        "summary": "Busca um endereço do responsável.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnderecoResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ResponsavelEndereco"
+        ],
+        "summary": "Atualiza um endereço.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelEndereco"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelEndereco"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsavelEndereco"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ResponsavelEndereco"
+        ],
+        "summary": "Remove um endereço. Se era o principal, o mais recente dos que sobram assume.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{responsavelId}/enderecos/{id}/principal": {
+      "patch": {
+        "tags": [
+          "ResponsavelEndereco"
+        ],
+        "summary": "Define o endereço como principal e desmarca os demais.",
+        "parameters": [
+          {
+            "name": "responsavelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/{id}": {
+      "get": {
+        "tags": [
+          "ResponsavelsApi"
+        ],
+        "summary": "Busca o responsável com endereços e contatos. Aceita o JWT do próprio ou o JWT de serviço do Java.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsavelResposta"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ResponsavelsApi"
+        ],
+        "summary": "Atualiza nome, CPF e e-mail.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizarResponsavelDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizarResponsavelDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizarResponsavelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ResponsavelsApi"
+        ],
+        "summary": "Apaga primeiro os pets do responsável no serviço clínico e só depois o cadastro. Se o Java não\nconfirmar, nada é apagado aqui: assim não sobram pets sem dono. Repetir a chamada é seguro.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/buscar": {
+      "get": {
+        "tags": [
+          "ResponsavelsApi"
+        ],
+        "summary": "Busca por CPF. Uso do pethub-java, com JWT de serviço no cabeçalho `X-Service-Authorization`.",
+        "parameters": [
+          {
+            "name": "cpf",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/responsavel/cadastro": {
+      "post": {
+        "tags": [
+          "ResponsavelsApi"
+        ],
+        "summary": "Cadastra o responsável e já devolve o token JWT.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CadastrarResponsavelDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CadastrarResponsavelDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CadastrarResponsavelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responsavel/login": {
+      "post": {
+        "tags": [
+          "ResponsavelsApi"
+        ],
+        "summary": "Autentica por e-mail e senha e devolve o token JWT.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AtualizarResponsavelDto": {
+        "required": [
+          "cpf",
+          "email",
+          "nome"
+        ],
+        "type": "object",
+        "properties": {
+          "nome": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "cpf": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "email": {
+            "minLength": 1,
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Atualização de dados cadastrais; a senha não muda por aqui."
+      },
+      "AtualizarStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StatusLembrete"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CadastrarResponsavelDto": {
+        "required": [
+          "cpf",
+          "email",
+          "nome",
+          "senha"
+        ],
+        "type": "object",
+        "properties": {
+          "nome": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "cpf": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "email": {
+            "minLength": 1,
+            "type": "string",
+            "format": "email"
+          },
+          "senha": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContatoResposta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "responsavelId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tipo": {
+            "type": "string",
+            "nullable": true
+          },
+          "telefone": {
+            "type": "string",
+            "nullable": true
+          },
+          "principal": {
+            "type": "boolean"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContatoRespostaPaginaDeResultados": {
+        "type": "object",
+        "properties": {
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContatoResposta"
+            },
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamanho": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalDeItens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalDePaginas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope de toda listagem da API: os itens da página, os totais e os links de navegação."
+      },
+      "EnderecoResposta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "responsavelId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "logradouro": {
+            "type": "string",
+            "nullable": true
+          },
+          "numero": {
+            "type": "string",
+            "nullable": true
+          },
+          "complemento": {
+            "type": "string",
+            "nullable": true
+          },
+          "bairro": {
+            "type": "string",
+            "nullable": true
+          },
+          "cidade": {
+            "type": "string",
+            "nullable": true
+          },
+          "estado": {
+            "type": "string",
+            "nullable": true
+          },
+          "cep": {
+            "type": "string",
+            "nullable": true
+          },
+          "principal": {
+            "type": "boolean"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EnderecoRespostaPaginaDeResultados": {
+        "type": "object",
+        "properties": {
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnderecoResposta"
+            },
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamanho": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalDeItens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalDePaginas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope de toda listagem da API: os itens da página, os totais e os links de navegação."
+      },
+      "LembreteResposta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "responsavelId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "petId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoLembrete"
+          },
+          "dataAgendada": {
+            "type": "string",
+            "format": "date"
+          },
+          "dataHora": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "mensagem": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusLembrete"
+          },
+          "referenciaId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "referenciaTipo": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LembreteRespostaPaginaDeResultados": {
+        "type": "object",
+        "properties": {
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LembreteResposta"
+            },
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamanho": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalDeItens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalDePaginas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope de toda listagem da API: os itens da página, os totais e os links de navegação."
+      },
+      "Link": {
+        "type": "object",
+        "properties": {
+          "href": {
+            "type": "string",
+            "description": "Caminho relativo à raiz da API.",
+            "nullable": true
+          },
+          "rel": {
+            "type": "string",
+            "description": "Relação com o recurso atual (`self`, `next`, `atualizar`...).",
+            "nullable": true
+          },
+          "metodo": {
+            "type": "string",
+            "description": "Verbo HTTP.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Ação disponível a partir de um recurso (HATEOAS): para onde ir, o que significa e com qual verbo."
+      },
+      "LoginDto": {
+        "required": [
+          "email",
+          "senha"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "minLength": 1,
+            "type": "string",
+            "format": "email"
+          },
+          "senha": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": {}
+      },
+      "RegistroDeMensagemResposta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "recebidaEm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tipo": {
+            "type": "string",
+            "nullable": true
+          },
+          "petId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "referenciaTipo": {
+            "type": "string",
+            "nullable": true
+          },
+          "referenciaId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "resultado": {
+            "type": "string",
+            "nullable": true
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Uma mensagem da fila, como ficou registrada no MongoDB. O corpo bruto fica só no banco (auditoria)."
+      },
+      "RegistroDeMensagemRespostaPaginaDeResultados": {
+        "type": "object",
+        "properties": {
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistroDeMensagemResposta"
+            },
+            "nullable": true
+          },
+          "pagina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamanho": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalDeItens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalDePaginas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope de toda listagem da API: os itens da página, os totais e os links de navegação."
+      },
+      "ResponsavelContato": {
+        "required": [
+          "telefone",
+          "tipo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "responsavelId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tipo": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "telefone": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "principal": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResponsavelEndereco": {
+        "required": [
+          "bairro",
+          "cep",
+          "cidade",
+          "estado",
+          "logradouro",
+          "numero"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "responsavelId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "logradouro": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "numero": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "complemento": {
+            "type": "string",
+            "nullable": true
+          },
+          "bairro": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "cidade": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "estado": {
+            "maxLength": 2,
+            "minLength": 0,
+            "type": "string"
+          },
+          "cep": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string"
+          },
+          "principal": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResponsavelResposta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nome": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpf": {
+            "type": "string",
+            "nullable": true
+          },
+          "ativo": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enderecos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnderecoResposta"
+            },
+            "nullable": true
+          },
+          "contatos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContatoResposta"
+            },
+            "nullable": true
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StatusLembrete": {
+        "enum": [
+          "PENDENTE",
+          "ENVIADO",
+          "FALHOU"
+        ],
+        "type": "string"
+      },
+      "TipoLembrete": {
+        "enum": [
+          "VACINA",
+          "CONSULTA",
+          "EXAME",
+          "MEDICAMENTO"
+        ],
+        "type": "string"
+      },
+      "ValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": {}
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "Informe apenas o token JWT.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "Bearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "GatewayClinico",
+      "description": "Porta de entrada do responsável para o serviço clínico (pethub-java).\nO Java só reconhece o responsável pela credencial de serviço; por isso o aplicativo fala com\neste gateway, que valida o JWT do Vitalis e repassa o pedido dizendo de quem ele é. As regras\n(o pet é do responsável? a consulta é de um pet dele?) continuam sendo do Java."
+    },
+    {
+      "name": "LembretesApi",
+      "description": "Lembretes do responsável. Eles nascem de mensagens do pethub-java (veja Mensageria/LembreteConsumidor),\npor isso não existe POST: aqui o responsável só consulta, marca o status e apaga os próprios."
+    },
+    {
+      "name": "ResponsavelContato",
+      "description": "Contatos (telefones) do responsável autenticado. Ao marcar um como principal, os demais são desmarcados."
+    },
+    {
+      "name": "ResponsavelEndereco",
+      "description": "Endereços do responsável autenticado. Ao marcar um como principal, os demais são desmarcados."
+    },
+    {
+      "name": "ResponsavelsApi"
+    }
+  ]
+}

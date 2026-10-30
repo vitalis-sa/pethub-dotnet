@@ -20,6 +20,8 @@ public static class AgendaDeDoses
         => vezesPorDia is >= 1 and <= MaximoDeDosesPorDia && duracaoDias is >= 1 and <= MaximoDeDias;
 
     /// <param name="inicio">Momento em que a receita foi salva (horário local).</param>
+    /// <param name="vezesPorDia">Doses por dia (1 a <see cref="MaximoDeDosesPorDia"/>).</param>
+    /// <param name="duracaoDias">Dias de tratamento (1 a <see cref="MaximoDeDias"/>).</param>
     public static IReadOnlyList<DateTime> Calcular(DateTime inicio, int vezesPorDia, int duracaoDias)
     {
         if (!Valida(vezesPorDia, duracaoDias))

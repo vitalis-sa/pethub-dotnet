@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Moq;
+using Vitalis.Consultas;
+using Vitalis.Dto;
 using Vitalis.Repositories;
 using Vitalis.Tests.Unit.Fixtures;
 using Xunit;
@@ -24,19 +26,21 @@ public class ResponsavelContatoControllerTests
                 new Mock<ILogger<ResponsavelContatoController>>().Object));
 
     [Fact]
-    public void GetAll_ResponsavelComContatos_DeveRetornarOkComALista()
+    public void GetAll_ResponsavelComContatos_DeveRetornarPaginaComOsContatos()
     {
         // Arrange
-        _repositorioMock.Setup(r => r.GetByResponsavelId(1))
-            .Returns([NovoContato(id: 1, responsavelId: 1, principal: true)]);
+        _repositorioMock.Setup(r => r.Consultar(1, It.IsAny<FiltroDeContatos>(), It.IsAny<ConsultaPaginada>()))
+            .Returns(([NovoContato(id: 1, responsavelId: 1, principal: true)], 1));
         var controller = CriarController();
 
         // Act
-        var resultado = controller.GetAll(1);
+        var resultado = controller.GetAll(1, new FiltroDeContatos(), new ConsultaPaginada());
 
         // Assert
-        var ok = resultado.Should().BeOfType<OkObjectResult>().Subject;
-        ok.Value.Should().BeAssignableTo<IEnumerable<ResponsavelContato>>().Which.Should().HaveCount(1);
+        var pagina = resultado.Should().BeOfType<OkObjectResult>().Which.Value
+            .Should().BeOfType<PaginaDeResultados<ContatoResposta>>().Subject;
+        pagina.Itens.Should().ContainSingle().Which.Principal.Should().BeTrue();
+        pagina.TotalDeItens.Should().Be(1);
     }
 
     [Fact]
@@ -79,7 +83,7 @@ public class ResponsavelContatoControllerTests
         var atualizado = NovoContato(id: 0, responsavelId: 0, telefone: "11912345678");
 
         // Act
-        var resultado = controller.Update(responsavelid: 2, id: 4, atualizado);
+        var resultado = controller.Update(responsavelId: 2, id: 4, atualizado);
 
         // Assert
         resultado.Should().BeOfType<NoContentResult>();

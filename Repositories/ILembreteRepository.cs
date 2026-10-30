@@ -1,3 +1,4 @@
+using Vitalis.Consultas;
 using Vitalis.Models;
 
 namespace Vitalis.Repositories;
@@ -6,6 +7,11 @@ public interface ILembreteRepository
 {
     IEnumerable<Lembrete> GetAll();
     IEnumerable<Lembrete> GetByResponsavelId(long responsavelId);
+    /// <summary>
+    /// Lembretes do responsável filtrados, ordenados e paginados, com o total antes da paginação.
+    /// Doses de medicamento ainda não liberadas ficam de fora, como em <see cref="GetByResponsavelId"/>.
+    /// </summary>
+    (IReadOnlyList<Lembrete> Itens, int Total) Consultar(long responsavelId, FiltroDeLembretes filtro, ConsultaPaginada consulta);
     /// <summary>Doses de medicamento ainda por vir, em ordem de horário: o app agenda a notificação de cada uma.</summary>
     IEnumerable<Lembrete> GetDosesFuturas(long responsavelId, DateTime agora, int limite);
     IEnumerable<Lembrete> GetByResponsavelIdETipo(long responsavelId, TipoLembrete tipo);

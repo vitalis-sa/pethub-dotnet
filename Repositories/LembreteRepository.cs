@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Vitalis.Consultas;
 using Vitalis.Models;
 
 namespace Vitalis.Repositories;
@@ -23,6 +24,51 @@ public class LembreteRepository : ILembreteRepository
             .Where(l => l.ResponsavelId == responsavelId && !(l.DataHora != null && l.Status == StatusLembrete.PENDENTE))
             .OrderByDescending(l => l.DataAgendada)
             .ToList();
+
+    public (IReadOnlyList<Lembrete> Itens, int Total) Consultar(
+        long responsavelId, FiltroDeLembretes filtro, ConsultaPaginada consulta)
+    {
+        var consultaBase = _context.Lembretes
+            .Where(l => l.ResponsavelId == responsavelId && !(l.DataHora != null && l.Status == StatusLembrete.PENDENTE));
+
+        if (filtro.Tipo is not null)
+        {
+            var tipo = filtro.Tipo.Value;
+            consultaBase = consultaBase.Where(l => l.Tipo == tipo);
+        }
+        if (filtro.Status is not null)
+        {
+            var status = filtro.Status.Value;
+            consultaBase = consultaBase.Where(l => l.Status == status);
+        }
+        if (filtro.PetId is not null)
+        {
+            var petId = filtro.PetId.Value;
+            consultaBase = consultaBase.Where(l => l.PetId == petId);
+        }
+        if (filtro.De is not null)
+        {
+            var de = filtro.De.Value;
+            consultaBase = consultaBase.Where(l => l.DataAgendada >= de);
+        }
+        if (filtro.Ate is not null)
+        {
+            var ate = filtro.Ate.Value;
+            consultaBase = consultaBase.Where(l => l.DataAgendada <= ate);
+        }
+
+        var total = consultaBase.Count();
+        var ordenada = consulta.CampoDeOrdenacao("dataAgendada").ToLowerInvariant() switch
+        {
+            "tipo" => Ordenacao.Por(consultaBase, l => l.Tipo, consulta.Decrescente(padrao: false)).ThenByDescending(l => l.Id),
+            "status" => Ordenacao.Por(consultaBase, l => l.Status, consulta.Decrescente(padrao: false)).ThenByDescending(l => l.Id),
+            "id" => Ordenacao.Por(consultaBase, l => l.Id, consulta.Decrescente(padrao: true)),
+            // Padrão: os mais recentes primeiro, como a listagem sempre foi.
+            _ => Ordenacao.Por(consultaBase, l => l.DataAgendada, consulta.Decrescente(padrao: true)).ThenByDescending(l => l.Id)
+        };
+
+        return (ordenada.Skip(consulta.Ignorar).Take(consulta.Tamanho).ToList(), total);
+    }
 
     public IEnumerable<Lembrete> GetDosesFuturas(long responsavelId, DateTime agora, int limite)
         => _context.Lembretes
