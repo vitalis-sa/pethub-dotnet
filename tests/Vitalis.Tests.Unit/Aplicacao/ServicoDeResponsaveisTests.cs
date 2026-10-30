@@ -120,15 +120,31 @@ public class ServicoDeResponsaveisTests
     {
         // Arrange
         var dados = NovoCadastro();
-        _repositorio.Setup(r => r.ObterPorCpf(dados.Cpf)).Returns(NovoResponsavel());
+        _repositorio.Setup(r => r.CpfEmUso(dados.Cpf, null)).Returns(true);
 
         // Act
         var resultado = _servico.Cadastrar(dados);
 
         // Assert
-        resultado.Erro!.Tipo.Should().Be(TipoDeErro.Conflito);
+        resultado.Erro.Should().Be(Erro.Conflito("CPF já cadastrado"));
         _repositorio.Verify(r => r.Adicionar(It.IsAny<Responsavel>()), Times.Never);
         _repositorio.Verify(r => r.SalvarAlteracoes(), Times.Never);
+    }
+
+    [Fact]
+    public void Cadastrar_EmailJaExistente_DeveDevolverConflitoSemGravar()
+    {
+        // Arrange
+        var dados = NovoCadastro();
+        _repositorio.Setup(r => r.EmailEmUso(dados.Email, null)).Returns(true);
+
+        // Act
+        var resultado = _servico.Cadastrar(dados);
+
+        // Assert
+        resultado.Erro.Should().Be(Erro.Conflito("E-mail já cadastrado"));
+        _repositorio.Verify(r => r.Adicionar(It.IsAny<Responsavel>()), Times.Never);
+        _tokens.Verify(t => t.Emitir(It.IsAny<Responsavel>()), Times.Never);
     }
 
     [Fact]
@@ -220,6 +236,64 @@ public class ServicoDeResponsaveisTests
         existente.Email.Should().Be("novo@pethub.com");
         existente.Senha.Should().Be("hash:original");
         _repositorio.Verify(r => r.SalvarAlteracoes(), Times.Once);
+    }
+
+    [Fact]
+    public void Atualizar_MantendoOProprioCpfEEmail_DeveConsultarExcluindoOProprioResponsavel()
+    {
+        // Arrange
+        _repositorio.Setup(r => r.ObterPorId(1)).Returns(NovoResponsavel(id: 1));
+
+        // Act
+        var resultado = _servico.Atualizar(1, new AtualizarResponsavelDto
+        {
+            Nome = "Pedro", Cpf = "12345678901", Email = "pedro@pethub.com"
+        });
+
+        // Assert
+        resultado.Sucesso.Should().BeTrue();
+        _repositorio.Verify(r => r.CpfEmUso("12345678901", 1), Times.Once);
+        _repositorio.Verify(r => r.EmailEmUso("pedro@pethub.com", 1), Times.Once);
+    }
+
+    [Fact]
+    public void Atualizar_CpfDeOutroResponsavel_DeveDevolverConflitoSemAlterarNemGravar()
+    {
+        // Arrange
+        var existente = NovoResponsavel(id: 1);
+        _repositorio.Setup(r => r.ObterPorId(1)).Returns(existente);
+        _repositorio.Setup(r => r.CpfEmUso("99999999999", 1)).Returns(true);
+
+        // Act
+        var resultado = _servico.Atualizar(1, new AtualizarResponsavelDto
+        {
+            Nome = "Pedro", Cpf = "99999999999", Email = "pedro@pethub.com"
+        });
+
+        // Assert
+        resultado.Erro.Should().Be(Erro.Conflito("CPF já cadastrado"));
+        existente.Cpf.Should().Be("12345678901");
+        _repositorio.Verify(r => r.SalvarAlteracoes(), Times.Never);
+    }
+
+    [Fact]
+    public void Atualizar_EmailDeOutroResponsavel_DeveDevolverConflitoSemAlterarNemGravar()
+    {
+        // Arrange
+        var existente = NovoResponsavel(id: 1);
+        _repositorio.Setup(r => r.ObterPorId(1)).Returns(existente);
+        _repositorio.Setup(r => r.EmailEmUso("ana@pethub.com", 1)).Returns(true);
+
+        // Act
+        var resultado = _servico.Atualizar(1, new AtualizarResponsavelDto
+        {
+            Nome = "Pedro", Cpf = "12345678901", Email = "ana@pethub.com"
+        });
+
+        // Assert
+        resultado.Erro.Should().Be(Erro.Conflito("E-mail já cadastrado"));
+        existente.Email.Should().Be("pedro@pethub.com");
+        _repositorio.Verify(r => r.SalvarAlteracoes(), Times.Never);
     }
 
     [Fact]

@@ -30,6 +30,8 @@ public class ServicoDeResponsaveis(
     ILogger<ServicoDeResponsaveis> logger) : IServicoDeResponsaveis
 {
     private const string NaoEncontrado = "Responsavel não encontrado";
+    private const string CpfJaCadastrado = "CPF já cadastrado";
+    private const string EmailJaCadastrado = "E-mail já cadastrado";
 
     public Resultado<Responsavel> Obter(long id)
     {
@@ -70,11 +72,19 @@ public class ServicoDeResponsaveis(
 
         try
         {
-            if (repositorio.ObterPorCpf(dados.Cpf) is not null)
+            if (repositorio.CpfEmUso(dados.Cpf))
             {
-                Registrar(atividade, "erro_cpf_duplicado", "CPF já cadastrado");
+                Registrar(atividade, "erro_cpf_duplicado", CpfJaCadastrado);
                 logger.LogWarning("Tentativa de cadastrar responsável com CPF já existente.");
-                return Erro.Conflito("CPF já cadastrado");
+                return Erro.Conflito(CpfJaCadastrado);
+            }
+
+            // O login procura pelo e-mail: dois cadastros com o mesmo e-mail tornariam a conta ambígua.
+            if (repositorio.EmailEmUso(dados.Email))
+            {
+                Registrar(atividade, "erro_email_duplicado", EmailJaCadastrado);
+                logger.LogWarning("Tentativa de cadastrar responsável com e-mail já existente.");
+                return Erro.Conflito(EmailJaCadastrado);
             }
 
             logger.LogInformation("Tentando cadastrar responsável: {NomeResponsavel}", dados.Nome);
@@ -132,6 +142,19 @@ public class ServicoDeResponsaveis(
         {
             logger.LogWarning("Atualização falhou: responsável {ResponsavelId} não encontrado.", id);
             return Erro.NaoEncontrado(NaoEncontrado);
+        }
+
+        // Manter o próprio CPF ou e-mail é permitido; usar o de outro responsável, não.
+        if (repositorio.CpfEmUso(dados.Cpf, excetoId: id))
+        {
+            logger.LogWarning("Atualização do responsável {ResponsavelId} recusada: CPF já é de outro responsável.", id);
+            return Erro.Conflito(CpfJaCadastrado);
+        }
+
+        if (repositorio.EmailEmUso(dados.Email, excetoId: id))
+        {
+            logger.LogWarning("Atualização do responsável {ResponsavelId} recusada: e-mail já é de outro responsável.", id);
+            return Erro.Conflito(EmailJaCadastrado);
         }
 
         responsavel.AtualizarCadastro(dados.Nome, dados.Cpf, dados.Email);

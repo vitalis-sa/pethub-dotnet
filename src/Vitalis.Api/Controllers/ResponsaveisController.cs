@@ -35,7 +35,7 @@ public class ResponsaveisController(IServicoDeResponsaveis servico, IAutenticado
         return this.Responder(servico.BuscarPorCpf(cpf), r => Ok(ResponsavelResumoResposta.De(r)));
     }
 
-    /// <summary>Cadastra o responsável e já devolve o token JWT.</summary>
+    /// <summary>Cadastra o responsável e já devolve o token JWT. CPF ou e-mail já cadastrados dão 409.</summary>
     [HttpPost("cadastro")]
     [ProducesResponseType<SessaoResposta>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -51,11 +51,12 @@ public class ResponsaveisController(IServicoDeResponsaveis servico, IAutenticado
     public IActionResult Login([FromBody] LoginDto credenciais)
         => this.Responder(servico.Entrar(credenciais), sessao => Ok(SessaoResposta.De(sessao)));
 
-    /// <summary>Atualiza nome, CPF e e-mail.</summary>
+    /// <summary>Atualiza nome, CPF e e-mail. CPF ou e-mail que já sejam de outro responsável dão 409.</summary>
     [HttpPut("{id:long}")]
     [ApenasProprietario("id")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public IActionResult Update(long id, [FromBody] AtualizarResponsavelDto dados)
         => this.Responder(servico.Atualizar(id, dados), NoContent);
 

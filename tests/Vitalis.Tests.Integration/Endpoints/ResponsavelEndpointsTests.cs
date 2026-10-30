@@ -111,6 +111,25 @@ public class ResponsavelEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task PostCadastro_EmailJaCadastrado_DeveRetornar409EOLoginContinuarNaContaOriginal()
+    {
+        // Arrange
+        var original = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "12312312312", email: "repetido@pethub.com");
+
+        // Act
+        var resposta = await _client.PostAsJsonAsync("/api/responsavel/cadastro",
+            DadosDeIntegracao.NovoCadastro(cpf: "45645645645", email: "repetido@pethub.com"));
+        var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+        var login = await _client.PostAsJsonAsync("/api/responsavel/login", DadosDeIntegracao.NovoLogin(email: "repetido@pethub.com"));
+        var sessao = await login.Content.ReadFromJsonAsync<JsonElement>();
+
+        // Assert
+        resposta.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        corpo.GetProperty("detail").GetString().Should().Be("E-mail já cadastrado");
+        sessao.GetProperty("id").GetInt64().Should().Be(original);
+    }
+
+    [Fact]
     public async Task GetById_ResponsavelCadastrado_DeveRetornar200ComOsDados()
     {
         // Arrange
@@ -300,6 +319,40 @@ public class ResponsavelEndpointsTests : IDisposable
         // Assert
         resposta.StatusCode.Should().Be(HttpStatusCode.NoContent);
         consulta.GetProperty("nome").GetString().Should().Be("Nome Atualizado");
+    }
+
+    [Fact]
+    public async Task PutResponsavel_CpfDeOutroResponsavel_DeveRetornar409SemAlterarOCadastro()
+    {
+        // Arrange
+        await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "10101010101", email: "dono-do-cpf@pethub.com");
+        var eu = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "20202020202", email: "eu@pethub.com");
+
+        // Act
+        var resposta = await _client.PutAsJsonAsync($"/api/responsavel/{eu}",
+            DadosDeIntegracao.NovoCadastro(cpf: "10101010101", email: "eu@pethub.com"));
+        var consulta = await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{eu}");
+
+        // Assert
+        resposta.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        consulta.GetProperty("cpf").GetString().Should().Be("20202020202");
+    }
+
+    [Fact]
+    public async Task PutResponsavel_EmailDeOutroResponsavel_DeveRetornar409SemAlterarOCadastro()
+    {
+        // Arrange
+        await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "30303030303", email: "dono-do-email@pethub.com");
+        var eu = await DadosDeIntegracao.CadastrarResponsavelAsync(_client, cpf: "40404040404", email: "eu2@pethub.com");
+
+        // Act
+        var resposta = await _client.PutAsJsonAsync($"/api/responsavel/{eu}",
+            DadosDeIntegracao.NovoCadastro(cpf: "40404040404", email: "dono-do-email@pethub.com"));
+        var consulta = await _client.GetFromJsonAsync<JsonElement>($"/api/responsavel/{eu}");
+
+        // Assert
+        resposta.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        consulta.GetProperty("email").GetString().Should().Be("eu2@pethub.com");
     }
 
     [Fact]

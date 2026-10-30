@@ -14,6 +14,13 @@ public interface IResponsavelRepository
     /// <summary>Busca só entre os ativos.</summary>
     Responsavel? ObterPorCpf(string cpf);
     Responsavel? ObterPorEmail(string email);
+    /// <summary>Algum responsável ativo, além de <paramref name="excetoId"/>, já usa este CPF?</summary>
+    bool CpfEmUso(string cpf, long? excetoId = null);
+    /// <summary>
+    /// Algum responsável, além de <paramref name="excetoId"/>, já usa este e-mail? Conta também os desativados,
+    /// porque o login procura pelo e-mail sem olhar se a conta está ativa.
+    /// </summary>
+    bool EmailEmUso(string email, long? excetoId = null);
     void Adicionar(Responsavel responsavel);
     void Remover(Responsavel responsavel);
     void SalvarAlteracoes();

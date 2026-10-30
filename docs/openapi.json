@@ -1360,7 +1360,7 @@
         "tags": [
           "Responsaveis"
         ],
-        "summary": "Atualiza nome, CPF e e-mail.",
+        "summary": "Atualiza nome, CPF e e-mail. CPF ou e-mail que já sejam de outro responsável dão 409.",
         "parameters": [
           {
             "name": "id",
@@ -1397,6 +1397,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1504,7 +1514,7 @@
         "tags": [
           "Responsaveis"
         ],
-        "summary": "Cadastra o responsável e já devolve o token JWT.",
+        "summary": "Cadastra o responsável e já devolve o token JWT. CPF ou e-mail já cadastrados dão 409.",
         "requestBody": {
           "content": {
             "application/json": {

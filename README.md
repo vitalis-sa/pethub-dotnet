@@ -434,7 +434,7 @@ Todo erro da API sai no mesmo formato, **`application/problem+json`** (RFC 9457)
 
 | Origem | Exemplo | Quem monta |
 |---|---|---|
-| Regra de negócio (caso de uso devolve um `Erro`) | `404` endereço de outro responsável, `409` CPF duplicado, `403` lembrete de outro | `Erros/RespostasDeResultado.cs` + `Erros/Problemas.cs` |
+| Regra de negócio (caso de uso devolve um `Erro`) | `404` endereço de outro responsável, `409` CPF ou e-mail já cadastrado, `403` lembrete de outro | `Erros/RespostasDeResultado.cs` + `Erros/Problemas.cs` |
 | Validação automática do `[ApiController]` | `400` JSON malformado, `tamanho=500` | `ProblemDetailsFactory` + `CustomizeProblemDetails` |
 | Pipeline sem corpo | `401` sem token, `403`, rota inexistente | `UseStatusCodePages` |
 | Exceção não tratada | `500` (genérico), `503` serviço clínico fora | `Erros/TratadorGlobalDeExcecoes.cs` (`IExceptionHandler`) |
@@ -577,7 +577,7 @@ span é marcado com `ActivityStatusCode.Error`.
 | `responsaveis_cadastrados_total` | Counter | Responsáveis cadastrados, com a tag `status` |
 | `lembretes_criados_total` | Counter | Lembretes gravados a partir da fila, com a tag `status` |
 
-A tag `status` distingue os desfechos (`sucesso`, `erro_validacao`, `erro_cpf_duplicado`, `erro_interno`), o que
+A tag `status` distingue os desfechos (`sucesso`, `erro_validacao`, `erro_cpf_duplicado`, `erro_email_duplicado`, `erro_interno`), o que
 permite acompanhar a **taxa de erros** por operação de negócio. O **tempo de resposta** de todas as rotas vem do
 histograma `http.server.request.duration`, publicado pela auto-instrumentação do ASP.NET Core.
 
@@ -616,12 +616,12 @@ ou de exemplo. O arquivo [`.env.example`](.env.example) traz todas as variáveis
 
 ## Testes automatizados
 
-A solução tem **268 testes**, organizados em dois projetos:
+A solução tem **275 testes**, organizados em dois projetos:
 
 | Projeto | Testes | Escopo |
 |---|---|---|
-| `tests/Vitalis.Tests.Unit` | 194 | Domínio, casos de uso da Aplicação, camada HTTP, Infraestrutura (JWT, hash) e regras de arquitetura, com dependências isoladas por Moq |
-| `tests/Vitalis.Tests.Integration` | 74 | Fluxo HTTP completo via `WebApplicationFactory` |
+| `tests/Vitalis.Tests.Unit` | 198 | Domínio, casos de uso da Aplicação, camada HTTP, Infraestrutura (JWT, hash) e regras de arquitetura, com dependências isoladas por Moq |
+| `tests/Vitalis.Tests.Integration` | 77 | Fluxo HTTP completo via `WebApplicationFactory` |
 
 ### Cobertura
 
@@ -632,8 +632,8 @@ Medida com coverlet (`dotnet test --collect:"XPlat Code Coverage"`), somando os 
 | **`Vitalis.Domain`** | **97,3%** |
 | **`Vitalis.Application`** | **99,8%** |
 | `Vitalis.Api` | 97,1% |
-| `Vitalis.Infrastructure` | 56,7% |
-| Total, sem as migrations geradas | 82,3% |
+| `Vitalis.Infrastructure` | 57,2% |
+| Total, sem as migrations geradas | 82,5% |
 
 A infraestrutura é a menos coberta porque depende de servidores reais (Oracle, MongoDB, RabbitMQ, pethub-java). Nos
 testes de integração, o MongoDB é substituído por `HistoricoEmMemoria` e o Java por `JavaFalso`. As implementações
@@ -704,8 +704,9 @@ Os testes unitários seguem a mesma divisão em camadas da solução:
 item principal (`RegraDoPrincipal`), o reagendamento e a liberação de lembretes, e a agenda de doses.
 
 **`Aplicacao/`**: os casos de uso com as portas simuladas por Moq.
-- `ServicoDeResponsaveis`: senha guardada só como hash, data do relógio, CPF duplicado, login (senha errada, e-mail
-  inexistente, conta desativada), exclusão que chama o Java **antes** de remover e desiste se ele não confirmar.
+- `ServicoDeResponsaveis`: senha guardada só como hash, data do relógio, CPF e e-mail únicos no cadastro e na
+  atualização (manter os próprios é permitido), login (senha errada, e-mail inexistente, conta desativada), exclusão
+  que chama o Java **antes** de remover e desiste se ele não confirmar.
 - `ServicoDeEnderecos` / `ServicoDeContatos`: posse (item de outro responsável é 404), principal ao incluir,
   atualizar, definir e remover, numa gravação só.
 - `ServicoDeLembretes`: filtros e ordenação, período invertido, posse (`Proibido`), histórico com o MongoDB ligado e
@@ -722,7 +723,8 @@ HATEOAS, `201` com `Location` e token, token de serviço na busca por CPF, gatew
 depende só do domínio e não conhece EF Core/MongoDB/RabbitMQ/ASP.NET, a infraestrutura não conhece a API e as
 entidades não têm atributos de mapeamento de banco.
 
-**Integração, Endpoints**: cadastro e login com token, senha nunca na resposta, `401`/`403` entre responsáveis,
+**Integração, Endpoints**: cadastro e login com token, senha nunca na resposta, `409` para CPF ou e-mail repetidos
+(no cadastro e na atualização), `401`/`403` entre responsáveis,
 exclusão que depende do Java, lembretes criados pela fila sem duplicar, gateway clínico, regra de endereço e
 contato principal. `ConsultasEHateoasEndpointsTests` cobre paginação navegando pelo link `next`, ordenação, filtros,
 links que levam aos recursos relacionados e o histórico. `ErrosEndpointsTests` cobre `problem+json` em rota
@@ -754,9 +756,9 @@ O responsável faz login (`POST /api/responsavel/login`) ou se cadastra e recebe
 |---|---|---|---|
 | `GET` | `/api/responsavel/{id}` | Responsável com endereços, contatos e links | JWT do próprio, ou JWT de serviço do Java |
 | `GET` | `/api/responsavel/buscar?cpf={cpf}` | Busca por CPF (chamado pelo Java) | JWT de serviço do Java (`X-Service-Authorization`) |
-| `POST` | `/api/responsavel/cadastro` | Cadastra e já devolve o `token` | — |
+| `POST` | `/api/responsavel/cadastro` | Cadastra e já devolve o `token` (`409` se o CPF ou o e-mail já estiverem cadastrados) | — |
 | `POST` | `/api/responsavel/login` | Autentica e devolve o `token` | — |
-| `PUT` | `/api/responsavel/{id}` | Atualiza nome, CPF e e-mail | JWT do próprio |
+| `PUT` | `/api/responsavel/{id}` | Atualiza nome, CPF e e-mail (`409` se o CPF ou o e-mail forem de outro responsável) | JWT do próprio |
 | `DELETE` | `/api/responsavel/{id}` | Apaga os pets no Java e depois o cadastro (`503` se o Java não confirmar) | JWT do próprio |
 
 ### Endereços, `/api/responsavel/{responsavelId}/enderecos` (JWT do próprio)
